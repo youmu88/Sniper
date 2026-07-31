@@ -44,10 +44,12 @@ integrated-test.js   胜负循环集成测试
 全部为原生 JS，无任何框架与外部依赖，可直接打开运行。
 
 ## 测试
+```bash
+node smoke-test.js                  # Node 冒烟测试：模块加载/初始化/击杀
+node integrated-test.js             # 胜负循环集成测试
+node headless-screenshot-test.js    # Chrome headless 截图回归（防渲染空白/静止 bug）
 ```
-node smoke-test.js
-node integrated-test.js
-```
+> headless-screenshot-test.js 需要本机装有 Google Chrome（可用 CHROME_PATH 指定路径）；退出码 0=渲染正常，1=画面内容过少疑似回归，可接入 CI。
 
 ## 设计文档
 见 `docs/game-design.md`。
