@@ -103,6 +103,21 @@
     return sx + this.camOX;
   };
 
+  // 相机接口：逻辑x -> 屏幕x（水平滚动）。供绘制函数统一调用
+  Game.prototype.camX = function (wx) {
+    return wx - this.camOX;
+  };
+  // 相机接口：逻辑y -> 屏幕y（当前无垂直滚动）
+  Game.prototype.camY = function (wy) {
+    return wy;
+  };
+  // 供 enemies.allies 中以 cam.x()/cam.y() 形式调用（保持接口形态一致）
+  Object.defineProperty(Game.prototype, 'cam', {
+    get() {
+      return { x: this.camX.bind(this), y: this.camY.bind(this) };
+    },
+  });
+
   Game.prototype.drawGround = function (ctx) {
     // 地面
     ctx.fillStyle = this.level.terrain === '雪原' ? '#d9e9f2' : this.level.terrain === '沙漠' ? '#ecd9a8' : this.level.terrain === '机甲基地' ? '#3a3f4a' : this.level.terrain === '废墟' ? '#b08968' : '#9cb873';
@@ -385,6 +400,14 @@
     const c = this.ctx;
     c.imageSmoothingEnabled = false;
 
+    // 相机对象：明确的 {x,y} 函数（供 enemies/allies 绘制调用，避免 getter 间接问题）
+    const cam = {
+      x: (wx) => wx - this.camOX,
+      y: (wy) => wy,
+    };
+    // 供 Game 自身绘制复用
+    this._camObj = cam;
+
     // 背景
     if (this.level.terrain === '城镇夜') c.fillStyle = '#12151f';
     else if (this.level.terrain === '雪原') c.fillStyle = '#bcd4e6';
@@ -398,10 +421,10 @@
     this.drawBarriers(c);
 
     // 敌人
-    this.enemies.forEach(e => e.draw(c, this));
+    this.enemies.forEach(e => e.draw(c, cam));
 
     // 队友
-    this.ally.draw(c, this);
+    this.ally.draw(c, cam);
 
     // 特效/弹道
     this.drawBullets(c);
