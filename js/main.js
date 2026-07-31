@@ -149,7 +149,6 @@
       game.shoot(input.mouse, game.zoom ? 2.2 : 1);
     }
     game.update(dt);
-    game.tickEnemyShots(dt);
 
     // 胜利/失败转移
     if (game.state === 'win') {
