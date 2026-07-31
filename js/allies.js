@@ -22,8 +22,10 @@
   Ally.prototype.update = function (dt, goalX) {
     if (!this.alive || this.reached) return;
     this.walkT += dt;
+    this.movedStep = false;
     if (this.x < goalX) {
       this.x += this.speed * dt;
+      this.movedStep = true;
     } else {
       this.reached = true;
     }
@@ -39,12 +41,14 @@
 
   Ally.prototype.draw = function (ctx, cam) {
     if (!this.alive) return;
-    const sx = this.sprite.width * this.scale;
-    const sy = this.sprite.height * this.scale;
+    const frame = this.reached ? 0 : (1 + (Math.floor(this.walkT * 10) % 2));
+    const sp = (S.sprites.fighter || function(){ return this.sprite; })('ally', frame) || this.sprite;
+    const sx = sp.width * this.scale;
+    const sy = sp.height * this.scale;
     const x = cam.x(this.x) - sx / 2;
     const y = cam.y(this.baseY) - sy;
     if (this.hurtFlash > 0) ctx.filter = 'brightness(2)';
-    ctx.drawImage(this.sprite, x, y, sx, sy);
+    ctx.drawImage(sp, x, y, sx, sy);
     ctx.filter = 'none';
     const bw = 44, bh = 5;
     ctx.fillStyle = '#333';

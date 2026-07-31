@@ -38,7 +38,26 @@
   // ============ 像素地图定义 ============
 
   // 干练的作战小队战士（背包+头盔）  敌人采用不同配色
-  function fighterMap() {
+  // frame: 0=站立, 1=走路左, 2=走路右, 3=死亡倒下
+  function fighterMap(frame) {
+    frame = frame || 0;
+    let legL = ['..BB..BB..', '.BB....BB.'];   // 站立
+    if (frame === 1) legL = ['..BB.BB...', '.BB....BB.']; // 迈步
+    else if (frame === 2) legL = ['...BB.BB..', '..BB....BB'];
+    const base = [
+      '..........',
+      '..HHHHHH..',
+      '.HHHHHHHH.',
+      '.HKKKKKKH.',
+      '.HKKKKKKH.',
+      '..KSSSSK..',
+      '..KSSSSK..',
+      '..KKKKKK..',
+      '..GGGGGG..',
+      '.GGGGGGGG.',
+      '.GGGGGGGG.',
+      '.GG.AAGG..',
+    ].concat(legL);
     return {
       w: 10, h: 14,
       palette: {
@@ -52,28 +71,29 @@
         'W': '#ffffff',
         'O': '#e6a23c', // 枪/配饰
       },
+      pixels: base,
+    };
+  }
+
+  // 死亡姿态（倒下的一具像素躯壳，横躺）
+  function fighterDeadMap() {
+    return {
+      w: 14, h: 6,
+      palette: { 'S': '#2f3640', 'K': '#e8b16c', 'H': '#4a5568', 'B': '#718096', 'G': '#3f7d44', 'A': '#2c3e50' },
       pixels: [
-        '..........',
-        '..HHHHHH..',
-        '.HHHHHHHH.',
-        '.HKKKKKKH.',
-        '.HKKKKKKH.',
-        '..KSSSSK..',
-        '..KSSSSK..',
-        '..KKKKKK..',
-        '..GGGGGG..',
-        '.GGGGGGGG.',
-        '.GGGGGGGG.',
-        '.GG.AAGG..',
-        '..BB..BB..',
-        '.BB....BB.',
+        '..............',
+        '.HHHHH........',
+        'HHKKKKKGGGGG..',
+        'HHKKKKKGGGGGG.',
+        '.HHHHHGGGGG...',
+        '....BBB...BBB.',
       ],
     };
   }
 
   // 敌人(红系) —— 与队友共用骨架改色
-  function enemyMap() {
-    const m = fighterMap();
+  function enemyMap(frame) {
+    const m = fighterMap(frame);
     m.palette['V'] = '#c0392b';
     m.palette['G'] = '#c0392b';
     m.palette['A'] = '#7b241c';
@@ -82,8 +102,8 @@
   }
 
   // 重型敌人（更多生命）
-  function heavyEnemyMap() {
-    const m = fighterMap();
+  function heavyEnemyMap(frame) {
+    const m = fighterMap(frame);
     m.palette['V'] = '#e74c3c';
     m.palette['G'] = '#e74c3c';
     m.palette['A'] = '#4a0000';
@@ -205,21 +225,47 @@
   }
 
   // ============ 对外 API ============
+  const _cache = {};
+  function cacheGet(key, build) {
+    if (!_cache[key]) _cache[key] = build();
+    return _cache[key];
+  }
   S.sprites = {
     pixelCanvas,
     drawFromMap,
-    // 返回已放大渲染的 canvas 图像
-    fighter(colorKey) {
-      const map = colorKey === 'enemy' ? enemyMap() :
-                  colorKey === 'heavy' ? heavyEnemyMap() : fighterMap();
-      const c = pixelCanvas(map.w, map.h);
-      drawFromMap(c, map, 1);
-      return c;
+    // 返回战士图像；colorKey: ally|enemy|heavy，frame: 0站立|1走|2走
+    fighter(colorKey, frame) {
+      frame = frame || 0;
+      const key = 'f_' + colorKey + '_' + frame;
+      return cacheGet(key, () => {
+        const map = colorKey === 'enemy' ? enemyMap(frame) :
+                    colorKey === 'heavy' ? heavyEnemyMap(frame) : fighterMap(frame);
+        const c = pixelCanvas(map.w, map.h);
+        drawFromMap(c, map, 1);
+        return c;
+      });
     },
-    boss() {
-      const c = pixelCanvas(bossMap().w, bossMap().h);
-      drawFromMap(c, bossMap(), 1);
-      return c;
+    // 死亡姿态（横躺），按配色
+    fighterDead(colorKey) {
+      const key = 'fd_' + colorKey;
+      return cacheGet(key, () => {
+        const m = fighterDeadMap();
+        if (colorKey === 'enemy' || colorKey === 'heavy') { m.palette['G'] = '#c0392b'; }
+        const c = pixelCanvas(m.w, m.h);
+        drawFromMap(c, m, 1);
+        return c;
+      });
+    },
+    // Boss 图像；coreGlow: true 时核心高亮（弱点暴露阶段）
+    boss(coreGlow) {
+      const key = 'boss_' + (coreGlow ? 1 : 0);
+      return cacheGet(key, () => {
+        const m = bossMap();
+        if (coreGlow) { m.palette['L'] = '#7dffb0'; m.palette['R'] = '#c026d3'; }
+        const c = pixelCanvas(m.w, m.h);
+        drawFromMap(c, m, 1);
+        return c;
+      });
     },
     barrier(type) {
       const c = pixelCanvas(12, 8);
@@ -245,6 +291,6 @@
       }
       return c;
     },
-    maps: { fighterMap, enemyMap, heavyEnemyMap, bossMap, barrierMap, groundMap },
+    maps: { fighterMap, fighterDeadMap, enemyMap, heavyEnemyMap, bossMap, barrierMap, groundMap },
   };
 })(typeof window !== 'undefined' ? window : this);

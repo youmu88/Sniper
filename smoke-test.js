@@ -49,7 +49,7 @@ global.Image = class {};
 
 // ---------- 加载模块 ----------
 const fs = require('fs');
-['js/sprites.js','js/levels.js','js/input.js','js/allies.js','js/enemies.js','js/game.js'].forEach(f => {
+['js/sprites.js','js/levels.js','js/input.js','js/audio.js','js/particles.js','js/allies.js','js/enemies.js','js/game.js'].forEach(f => {
   const code = fs.readFileSync(__dirname + '/' + f, 'utf8');
   // 用 Function 执行以隔离，注入 window/document
   const fn = new Function('window', 'document', 'localStorage', 'performance', 'requestAnimationFrame', 'Image', code + '\n//# sourceURL=' + f);

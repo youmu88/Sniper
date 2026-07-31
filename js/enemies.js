@@ -6,14 +6,6 @@
   'use strict';
   const S = global.Sniper = global.Sniper || {};
 
-  // 生成精灵（带缩放），kind 决定配色
-  function spriteForKind(kind) {
-    const sp = S.sprites && S.sprites.fighter;
-    if (kind === 'heavy') return sp ? sp('heavy') : null;
-    if (kind === 'boss')  return S.sprites && S.sprites.boss ? S.sprites.boss() : null;
-    return sp ? sp('enemy') : null;
-  }
-
   function Enemy(cfg, groundH) {
     this.kind = cfg.kind || 'stationary';
     this.x = cfg.x;
@@ -52,8 +44,10 @@
     this.coreVulnerable = cfg.coreVulnerable || false;
     this.boss = cfg.kind === 'boss';
 
-    this.sprite = spriteForKind(this.kind);
+    this.colorKey = this.boss ? 'boss' : (this.kind === 'heavy' ? 'heavy' : 'enemy');
     this.scale = this.boss ? 4 : 3.2;
+    this.animT = 0;          // 走路动画计时
+    this.moving = false;     // 本帧是否在移动
     this.hurtFlash = 0;
     this.floatY = 0;
 
@@ -74,15 +68,17 @@
 
   // 移动（巡逻/冲锋）
   Enemy.prototype.moveUpdate = function (dt, allyX) {
+    this.moving = false;
     if (this.kind === 'patrol' && this.speed > 0) {
       this.x += this.dir * this.speed * dt;
+      this.animT += dt; this.moving = true;
       if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
       if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
     } else if (this.kind === 'charger' && this.speed > 0) {
       // 朝队友逼近，但保持最小距离（挤压队友阵型但不过度贴脸）
       const dx = allyX - this.x;
       const d = Math.sign(dx);
-      if (Math.abs(dx) > 56) this.x += d * this.speed * dt;
+      if (Math.abs(dx) > 56) { this.x += d * this.speed * dt; this.animT += dt; this.moving = true; }
       this.facing = dx >= 0 ? 1 : -1;
     } else if (this.kind === 'stationary' || this.kind === 'crouch' || this.kind === 'heavy' || this.kind === 'sniper' || this.boss) {
       // 保持静止，面向队友
@@ -129,6 +125,36 @@
     }
   };
 
+  // Boss 阶段强化：核心暴露周期 + 第二阶段（提速/巡逻移动/弹幕）
+  Enemy.prototype.bossUpdate = function (dt) {
+    // 核心暴露周期：每 5s 一轮，后 2s 核心暴露（发光，弱点可重创）
+    this.coreTimer = (this.coreTimer || 0) + dt;
+    this.coreVulnerable = (this.coreTimer % 5) >= 3;
+
+    // 阶段检测：HP 降到 phaseAt 进入第二阶段
+    if (this.bossPhase === 0 && this.phaseAt > 0 && this.hp <= this.phaseAt) {
+      this.bossPhase = 1;
+      this.fireRate = this.fireRate * 1.5;   // 射速提升 50%
+      this.speed = 42;                        // 开始巡逻移动
+      this.dir = -1;
+      this.minX = 660; this.maxX = 860;       // 巡逻范围
+      this.barrageTimer = 4;
+      return { phaseChange: true };
+    }
+    // 第二阶段：左右巡逻 + 周期弹幕
+    if (this.bossPhase >= 1) {
+      if (this.speed > 0) {
+        this.x += this.dir * this.speed * dt;
+        this.animT += dt; this.moving = true;
+        if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
+        if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
+      }
+      this.barrageTimer -= dt;
+      if (this.barrageTimer <= 0) { this.barrageTimer = 4; return { barrage: true }; }
+    }
+    return null;
+  };
+
   Enemy.prototype.takeDamage = function (dmg) {
     if (!this.isVisible()) return false;   // 看不见打不着（隐匿时免疫）
     this.hp -= dmg;
@@ -143,9 +169,14 @@
     this.moveUpdate(dt, allyX);
     this.peekUpdate(dt);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
+    // Boss 阶段强化逻辑（核心暴露周期/第二阶段）
+    let bossRes = null;
+    if (this.boss) bossRes = this.bossUpdate(dt);
     // 死亡判定
     if (this.hp <= 0) { this.alive = false; return { killed: true, kind: this.kind }; }
+    if (bossRes && bossRes.phaseChange) return { phaseChange: true };
     const fired = this.fireUpdate(dt, allyAlive);
+    if (bossRes && bossRes.barrage) return { shot: true, barrage: true };
     if (fired) return { shot: true };
     return null;
   };
@@ -161,7 +192,8 @@
       ctx.fillText('!', cam.x(this.x), cam.y(this.baseY) - 46);
       return;
     }
-    const sp = this.sprite;
+    const frame = this.moving ? (1 + (Math.floor(this.animT * 10) % 2)) : 0;
+    const sp = this.boss ? S.sprites.boss(this.coreVulnerable) : S.sprites.fighter(this.colorKey, frame);
     const sx = (sp ? sp.width : 10) * this.scale;
     const sy = (sp ? sp.height : 14) * this.scale;
     const drawY = cam.y(this.baseY) - sy + (this.kind === 'crouch' ? sy * 0.3 : 0);

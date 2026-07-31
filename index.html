@@ -30,6 +30,16 @@
     .lvMeta { font-size:12px; color:#f0c15a; margin-top:3px; }
     #objective { max-width:540px; font-size:15px; line-height:1.7; opacity:.95; padding:0 12px; }
     .tip { font-size:12px; opacity:.6; margin-top:16px; padding:0 12px; }
+    /* 队友推进进度条 */
+    #hudProg { position:absolute; top:44px; left:12px; right:12px; height:6px; background:rgba(0,0,0,.45); border-radius:3px; overflow:hidden; pointer-events:none; }
+    #hudProgFill { height:100%; width:0%; background:linear-gradient(90deg,#3fae4a,#7fd0ff); border-radius:3px; transition:width .2s; }
+    /* 暂停提示 */
+    #pauseTip { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(8,12,20,.7); color:#ffd34d; font-size:26px; font-weight:700; letter-spacing:3px; z-index:8; pointer-events:none; border-radius:10px; }
+    /* 结算评分面板 */
+    #scorePanel { margin:14px 0 4px; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:14px 26px; min-width:280px; }
+    .scoreStars { font-size:30px; color:#f0c15a; letter-spacing:6px; text-shadow:0 2px 8px rgba(240,193,90,.5); }
+    .scoreRow { font-size:14px; margin-top:6px; opacity:.92; }
+    .scoreRow b { color:#7fd0ff; }
     @media (max-width:600px) { #levelGrid{grid-template-columns:repeat(3,1fr);} h1{font-size:24px;} }
   </style>
 </head>
@@ -43,8 +53,14 @@
         <span id="hudEnemy">敌方 -</span>
         <span id="hudAllyHp">队友 -</span>
         <span id="hudAmmo">弹药 -</span>
+        <span id="hudStat" style="color:#9fd3ff">击杀 -</span>
+        <span id="hudCombo" style="display:none;color:#ffb84d;font-weight:700"></span>
         <span id="hudBoss" style="display:none"></span>
       </div>
+      <!-- 队友推进进度条 -->
+      <div id="hudProg"><div id="hudProgFill"></div></div>
+      <!-- 暂停提示 -->
+      <div id="pauseTip" style="display:none">⏸ 已暂停 · 按 P 继续</div>
 
       <div class="screen show" id="screen-menu">
         <h1>🔭 狙击手掩护行动</h1>
@@ -65,6 +81,7 @@
       <div class="screen" id="screen-win">
         <h1 style="color:#4bd27a">✅ 任务完成！</h1>
         <div id="objective">漂亮的掩护！队友成功穿越了封锁线。</div>
+        <div id="scorePanel"></div>
         <div style="margin-top:22px">
           <button class="btn" id="btnNext">下一关 ▶</button>
           <button class="btn ghost" id="btnRetryWin" onclick="document.getElementById('btnRetry').click()">重玩</button>
@@ -93,6 +110,8 @@
   <script src="js/sprites.js"></script>
   <script src="js/levels.js"></script>
   <script src="js/input.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
   <script src="js/allies.js"></script>
   <script src="js/enemies.js"></script>
   <script src="js/game.js"></script>

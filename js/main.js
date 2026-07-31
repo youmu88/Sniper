@@ -57,16 +57,32 @@
     // 击杀反馈（可预留音效/计数）
   }
 
+  function uiSound(){ if (S.audio) { S.audio.unlock(); S.audio.play('ui'); } }
   function bindUI() {
-    document.getElementById('btnStart').addEventListener('click', () => showScreen('select'));
-    document.getElementById('btnSelectHome').addEventListener('click', () => showScreen('menu'));
-    document.getElementById('btnRetry').addEventListener('click', () => { restartLevel(); });
-    document.getElementById('btnNext').addEventListener('click', () => { goNext(); });
+    // 首次交互解锁音频（浏览器自动播放策略要求用户手势后才能出声）
+    const unlockAudio = () => { if (S.audio) S.audio.unlock(); };
+    window.addEventListener('pointerdown', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
 
-    // 空格发射补充（可选）
+    document.getElementById('btnStart').addEventListener('click', () => { uiSound(); showScreen('select'); });
+    document.getElementById('btnSelectHome').addEventListener('click', () => { uiSound(); showScreen('menu'); });
+    document.getElementById('btnRetry').addEventListener('click', () => { uiSound(); restartLevel(); });
+    document.getElementById('btnNext').addEventListener('click', () => { uiSound(); goNext(); });
+
+    // 空格发射补充 + P 暂停
     window.addEventListener('keydown', (e) => {
       if (screen === 'playing' && (e.code === 'Space')) { input.shootBuffer = true; }
+      if (e.code === 'KeyP' && screen === 'playing') { togglePause(); }
     });
+  }
+
+  let paused = false;
+  function togglePause() {
+    paused = !paused;
+    game.speed = paused ? 0 : 1;
+    if (S.audio) S.audio.play('ui');
+    const el = document.getElementById('pauseTip');
+    if (el) el.style.display = paused ? 'flex' : 'none';
   }
 
   // ---------- 屏幕切换 ----------
@@ -152,17 +168,43 @@
 
     // 胜利/失败转移
     if (game.state === 'win') {
-      // 记星
+      // 计算评分星级（命中率/队友剩余HP）
       const lvId = currentLevelId;
-      const st = Math.min(3, stars[lvId] || 0) + 1;
-      stars[lvId] = Math.max(stars[lvId] || 0, 1);
+      const rating = computeRating();
+      stars[lvId] = Math.max(stars[lvId] || 0, rating);
       if (lvId === unlocked && lvId < S.levels.count) { unlocked = lvId + 1; }
       saveProgress();
+      if (S.audio) S.audio.play(lvId >= S.levels.count ? 'winAll' : 'victory');
+      fillScorePanel(rating);
       if (lvId >= S.levels.count) showScreen('winAll');
       else showScreen('win');
     } else if (game.state === 'dead') {
+      if (S.audio) S.audio.play('defeat');
       showScreen('dead');
     }
+  }
+
+  // 评分：基础1星（通关），命中率≥60% +1星，队友剩余HP≥60% +1星
+  function computeRating() {
+    const st = game.stats;
+    const hitRate = st.shots > 0 ? st.hits / st.shots : 0;
+    let score = 1;
+    if (hitRate >= 0.6) score++;
+    if (game.ally.hpRatio() >= 0.6) score++;
+    return Math.min(3, score);
+  }
+
+  // 填充结算面板
+  function fillScorePanel(rating) {
+    const el = document.getElementById('scorePanel');
+    if (!el) return;
+    const st = game.stats;
+    const hitRate = st.shots > 0 ? Math.round(st.hits / st.shots * 100) : 0;
+    el.innerHTML =
+      `<div class="scoreStars">${'★'.repeat(rating)}${'☆'.repeat(3 - rating)}</div>` +
+      `<div class="scoreRow">命中率 <b>${hitRate}%</b>（${st.hits}/${st.shots}）</div>` +
+      `<div class="scoreRow">击杀 <b>${st.kills}</b> · 爆头 <b>${st.weakKills}</b> · 最高连杀 <b>${st.kills > 0 ? game.combo : 0}</b></div>` +
+      `<div class="scoreRow">队友剩余 <b>${Math.round(game.ally.hpRatio() * 100)}%</b> · 用时 <b>${game.time.toFixed(1)}s</b></div>`;
   }
 
   // ---------- 绘制 ----------
@@ -219,6 +261,19 @@
     document.getElementById('hudEnemy').textContent = `敌方存活: ${game.enemies.length}`;
     document.getElementById('hudAllyHp').textContent = `队友: ${Math.max(0, Math.round(game.ally.hp))}`;
     document.getElementById('hudAmmo').textContent = `弹药: ${game.ammo}`;
+    // 连击 + 命中率 + 击杀
+    const st = game.stats;
+    const hitRate = st.shots > 0 ? Math.round(st.hits / st.shots * 100) : 100;
+    const comboEl = document.getElementById('hudCombo');
+    if (comboEl) {
+      comboEl.textContent = game.combo >= 2 ? `🔥 ${game.combo} 连杀` : '';
+      comboEl.style.display = game.combo >= 2 ? 'inline-block' : 'none';
+    }
+    const statEl = document.getElementById('hudStat');
+    if (statEl) statEl.textContent = `击杀 ${st.kills} · 命中 ${hitRate}%`;
+    // 队友推进进度条
+    const progEl = document.getElementById('hudProgFill');
+    if (progEl && game.level.goalX) progEl.style.width = Math.min(100, game.ally.x / game.level.goalX * 100) + '%';
     // Boss 状态
     const bs = document.getElementById('hudBoss');
     if (game.boss) { bs.style.display = 'block'; bs.textContent = `BOSS HP ${game.boss.hp}`; }

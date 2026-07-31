@@ -144,7 +144,7 @@
         { kind: 'patrol', x: 650, y: 0, hp: 1, fireRate: 0.9, range: 70, speed: 22 },
         { kind: 'heavy', x: 750, y: 0, hp: 5, fireRate: 1.0 },
       ],
-      boss: { x: 760, hp: 40, fireRate: 1.3, phaseAt: 20, coreVulnerable: true },
+      boss: { x: 760, hp: 40, fireRate: 1.3, phaseAt: 20, coreVulnerable: false },
       maxSimultaneous: 4,
     },
   ];

@@ -39,7 +39,7 @@ global.requestAnimationFrame = () => {};
 global.Image = class {};
 
 const fs = require('fs');
-['js/sprites.js','js/levels.js','js/input.js','js/allies.js','js/enemies.js','js/game.js'].forEach(f => {
+['js/sprites.js','js/levels.js','js/input.js','js/audio.js','js/particles.js','js/allies.js','js/enemies.js','js/game.js'].forEach(f => {
   const code = fs.readFileSync(__dirname + '/' + f, 'utf8');
   // 挂在 global 环境执行，使模块内 document/window 等引用全局 mock
   (0, eval)(code + '\n//# sourceURL=' + f);
