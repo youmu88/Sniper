@@ -1,0 +1,20 @@
+/* ============================================================
+ * style.css — 兜底样式（主要样式已内联在 index.html 中保证单文件运行）
+ * 这里补充少量全局排版微调
+ * ============================================================ */
+html, body {
+  height: 100%;
+}
+
+#app h1 {
+  text-shadow: 0 2px 10px rgba(122,179,255,.35);
+}
+
+.levelCard {
+  user-select: none;
+}
+
+/* 让 win/dead/winAll 覆盖层有层次感 */
+.screen {
+  backdrop-filter: blur(2px);
+}

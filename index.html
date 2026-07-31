@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>狙击手掩护行动 · Sniper Cover Duty</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { margin:0; font-family:'system-ui',-apple-system,'Segoe UI',Roboto,sans-serif; background:#101722; color:#e6e9ef; overflow:hidden; }
+    #app { width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+    #gameWrap { position:relative; width:min(100vw, 60vh*1.667); max-width:1000px; }
+    canvas { width:100%; height:auto; display:block; background:#0f1b2a; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.6); }
+    #hud { position:absolute; top:8px; left:12px; right:12px; display:flex; gap:10px; align-items:center; pointer-events:none; font-size:13px; text-shadow:0 1px 3px #000; flex-wrap:wrap; }
+    #hud span { background:rgba(0,0,0,.45); padding:3px 9px; border-radius:6px; }
+    #hudBoss { color:#ff5e5e; font-weight:700; }
+    .screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(8,12,20,.84); border-radius:10px; text-align:center; z-index:5; }
+    .screen.show { display:flex; }
+    h1 { font-size:32px; margin:0 0 6px; letter-spacing:2px; }
+    h2 { font-weight:400; opacity:.7; font-size:16px; margin:0 0 22px; }
+    .btn { background:linear-gradient(180deg,#2f6fce,#1e4f9c); border:none; color:#fff; padding:12px 30px; font-size:16px; border-radius:8px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #123462; }
+    .btn:hover { filter:brightness(1.12); }
+    .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #123462; }
+    .btn.ghost { background:rgba(255,255,255,.12); box-shadow:none; border:1px solid rgba(255,255,255,.2); }
+    #levelGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:min(92%,600px); margin:14px 0; }
+    .levelCard { background:#1a2436; border:2px solid #2c3a52; border-radius:8px; padding:12px 6px; cursor:pointer; transition:.15s; }
+    .levelCard:hover:not(.locked) { border-color:#4a9; transform:scale(1.04); }
+    .levelCard.locked { opacity:.5; cursor:not-allowed; }
+    .lvNum { font-size:22px; font-weight:700; color:#7fd0ff; }
+    .lvName { font-size:13px; margin-top:2px; }
+    .lvMeta { font-size:12px; color:#f0c15a; margin-top:3px; }
+    #objective { max-width:540px; font-size:15px; line-height:1.7; opacity:.95; padding:0 12px; }
+    .tip { font-size:12px; opacity:.6; margin-top:16px; padding:0 12px; }
+    @media (max-width:600px) { #levelGrid{grid-template-columns:repeat(3,1fr);} h1{font-size:24px;} }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="gameWrap">
+      <canvas id="gameCanvas" width="1000" height="600"></canvas>
+      <div id="hud">
+        <span id="hudLevel">关卡 -</span>
+        <span id="hudName">-</span>
+        <span id="hudEnemy">敌方 -</span>
+        <span id="hudAllyHp">队友 -</span>
+        <span id="hudAmmo">弹药 -</span>
+        <span id="hudBoss" style="display:none"></span>
+      </div>
+
+      <div class="screen show" id="screen-menu">
+        <h1>🔭 狙击手掩护行动</h1>
+        <h2>Sniper Cover Duty</h2>
+        <div id="objective">你是隐藏在制高点的狙击手，任务掩护小队穿越敌占区完成使命。<br>瞄准镜内的一切威胁，都交给你来清除。</div>
+        <div style="margin-top:22px"><button class="btn" id="btnStart">开始任务</button></div>
+        <div class="tip">移动鼠标瞄准 · 左键射击 · 右键或Shift开镜放大弱点<br>通关后解锁下一关，难度循序渐进</div>
+      </div>
+
+      <div class="screen" id="screen-select">
+        <h2 style="margin-bottom:6px">选择任务</h2>
+        <div id="levelGrid"></div>
+        <div style="margin-top:10px"><button class="btn ghost" id="btnSelectHome">← 返回</button></div>
+      </div>
+
+      <div class="screen" id="screen-playing" style="pointer-events:none;background:transparent;z-index:0"></div>
+
+      <div class="screen" id="screen-win">
+        <h1 style="color:#4bd27a">✅ 任务完成！</h1>
+        <div id="objective">漂亮的掩护！队友成功穿越了封锁线。</div>
+        <div style="margin-top:22px">
+          <button class="btn" id="btnNext">下一关 ▶</button>
+          <button class="btn ghost" id="btnRetryWin" onclick="document.getElementById('btnRetry').click()">重玩</button>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-dead">
+        <h1 style="color:#e74c3c">💔 任务失败</h1>
+        <div id="objective">队友倒下了…… 调整战术，重新来过。</div>
+        <div style="margin-top:22px">
+          <button class="btn" id="btnRetry">重新任务</button>
+          <button class="btn ghost" id="btnSelectHome2" onclick="document.getElementById('btnSelectHome').click()">返回选关</button>
+        </div>
+      </div>
+
+      <div class="screen" id="screen-winAll">
+        <h1 style="color:#f0c15a">🏆 全面胜利！</h1>
+        <div id="objective">恭喜！你已完成全部任务。你是最可靠的狙击手！</div>
+        <div style="margin-top:22px">
+          <button class="btn ghost" id="btnWinAllReplay" onclick="document.getElementById('btnStart').click()">再战一局</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/sprites.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/allies.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
