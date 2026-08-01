@@ -24,6 +24,8 @@ export function createScene(canvas) {
   const camera = new THREE.PerspectiveCamera(64, window.innerWidth / window.innerHeight, 0.1, 260);
   camera.position.set(0, 4.2, 16);
   camera.lookAt(0, 0, -20);
+  // 关键：将 camera 加入 scene，挂在 camera 上的第一人称枪管模型才会被渲染
+  scene.add(camera);
 
   // Lighting — 夜景月光氛围
   const ambient = new THREE.AmbientLight(0x3a4a6a, 0.32);

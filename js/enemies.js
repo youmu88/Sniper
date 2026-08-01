@@ -46,6 +46,8 @@ export class Enemy3D {
     // 激怒状态：受击未死 → 加速反扑/射速提升
     this.enraged = false;
     this._enrageHintTimer = 0;
+    // 受击硬直：命中后短暂僵直（增强打击感）
+    this.hitStun = 0;
 
     // 巡逻范围（levels 用 range 简写：x ± range；显式 minX/maxX 优先）
     const range = cfg.range != null ? cfg.range : 4;
@@ -217,6 +219,12 @@ export class Enemy3D {
 
   moveUpdate(dt, allyX) {
     if (!this.alive || !this.spawned) return;
+    // 受击硬直：僵直期间原地停顿，动画冻结
+    if (this.hitStun > 0) {
+      this.mesh.position.x = this.x;
+      this._animateWalk(dt, false);
+      return;
+    }
     let moving = false;
     const spd = this.speed * (this.enraged ? ENRAGE.moveMult : 1);
     if (this.kind === 'patrol' && this.enraged) {
@@ -342,6 +350,9 @@ export class Enemy3D {
     this.hurtFlash = 0.12;
     this.updateHPBar();
 
+    // 受击硬直：命中后短暂僵直（Boss 抗性更强）
+    this.hitStun = this.kind === 'boss' ? 0.08 : 0.28;
+
     // 激怒机制：受击未死（非Boss）→ 狂暴加速/射速提升，外观更亮偏橙
     if (this.alive && this.hp > 0 && this.kind !== 'boss' && !this.enraged) {
       this.enraged = true;
@@ -370,6 +381,7 @@ export class Enemy3D {
     this.moveUpdate(dt, allyX);
     this.peekUpdate(dt);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
+    if (this.hitStun > 0) this.hitStun -= dt;
 
     // 冲锋兵/激怒巡逻兵贴身自爆：对队友造成近战伤害，自身阵亡
     const canMelee = this.kind === 'charger' || (this.kind === 'patrol' && this.enraged);
