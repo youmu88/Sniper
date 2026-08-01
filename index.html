@@ -42,6 +42,12 @@
     /* 精密刻度环：外层细刻度 */
     #scope-ring .scope-dial { position:absolute; inset:4%; border-radius:50%; border:1px solid rgba(255,85,51,0.28); }
     #scope-ring .scope-dial::before { content:''; position:absolute; inset:5%; border-radius:50%; border:1px dashed rgba(255,85,51,0.16); }
+    /* 倍率跳档时刻度环脉冲提示 */
+    #scope-ring .scope-dial.zoom-pulse { animation:dial-pulse .32s ease-out; }
+    @keyframes dial-pulse {
+      0% { border-color:#fff; box-shadow:0 0 18px rgba(255,120,60,0.9); transform:scale(1.04); }
+      100% { border-color:rgba(255,85,51,0.28); box-shadow:none; transform:scale(1); }
+    }
     /* 主十字准星（更细） */
     #scope-crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
     #scope-crosshair::before, #scope-crosshair::after { content:''; position:absolute; background:#ff5533; box-shadow:0 0 6px rgba(255,60,20,0.9); }

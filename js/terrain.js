@@ -457,6 +457,10 @@ export function createProps(levelDef) {
     // L1 教学关：训练靶（木桩 + 靶心）
     const target = _createTarget(rand(-14, -16), rand(-30, -26));
     if (target) specials.push(target);
+  } else if (levelDef.id === 2) {
+    // L2 草原：废弃弹药箱堆（残骸氛围）
+    const pile = _createAmmoPile(rand(-18, -22), rand(-30, -26));
+    if (pile) specials.push(pile);
   } else if (levelDef.id === 3) {
     // L3 城镇：涂鸦墙
     const wall = _createGraffitiWall(rand(-24, -28), rand(-30, -26));
@@ -465,6 +469,18 @@ export function createProps(levelDef) {
     // L4 城镇夜：霓虹灯牌（发光）
     const neon = _createNeonSign(rand(-18, -22), rand(-28, -24));
     if (neon) specials.push(neon);
+  } else if (levelDef.id === 5) {
+    // L5 沙漠：风化石柱（天然掩体）
+    const col = _createStoneColumn(rand(-20, -24), rand(-34, -30));
+    if (col) specials.push(col);
+  } else if (levelDef.id === 6) {
+    // L6 废墟：破损车辆残骸
+    const wreck = _createBurntVehicle(rand(-16, -20), rand(-30, -26));
+    if (wreck) specials.push(wreck);
+  } else if (levelDef.id === 7) {
+    // L7 雪原：信号旗杆（孤寂氛围）
+    const flag = _createSignalFlag(rand(-20, -24), rand(-32, -28));
+    if (flag) specials.push(flag);
   } else if (levelDef.id === 8) {
     // L8 机甲基地：能量罐（警示纹理）
     const tank = _createEnergyTank(rand(-14, -18), rand(-32, -28));
@@ -472,6 +488,60 @@ export function createProps(levelDef) {
   }
   specials.forEach(p => group.add(p));
   return group;
+}
+
+/** 废弃弹药箱堆（L2 草原） */
+function _createAmmoPile(x, z) {
+  try {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x7a6a3a, roughness: 0.9 });
+    for (let i = 0; i < 4; i++) {
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.5), mat);
+      crate.position.set((i % 2) * 0.55 - 0.28, 0.2 + Math.floor(i / 2) * 0.42, (Math.floor(i / 2) % 2) * 0.3);
+      crate.rotation.y = (i % 3) * 0.15;
+      crate.castShadow = true;
+      group.add(crate);
+    }
+    group.position.set(x, 0, z);
+    return group;
+  } catch (e) { return null; }
+}
+
+/** 风化石柱（L5 沙漠） */
+function _createStoneColumn(x, z) {
+  try {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.95, flatShading: true });
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.6, 7), mat);
+    col.position.y = 1.3; col.castShadow = true;
+    group.add(col);
+    const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), mat);
+    cap.position.y = 2.7; cap.rotation.set(0.3, 0, 0.4);
+    group.add(cap);
+    group.position.set(x, 0, z);
+    return group;
+  } catch (e) { return null; }
+}
+
+/** 信号旗杆（L7 雪原） */
+function _createSignalFlag(x, z) {
+  try {
+    const group = new THREE.Group();
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.6, metalness: 0.4 });
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 3.2, 6), poleMat);
+    pole.position.y = 1.6; group.add(pole);
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 40;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#c0392b'; ctx.fillRect(0, 0, 64, 40);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(12, 8, 8, 8); ctx.fillRect(28, 20, 8, 8); ctx.fillRect(12, 32, 8, 8);
+    const tex = new THREE.CanvasTexture(canvas);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.55),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide }));
+    flag.position.set(0.45, 2.9, 0); group.add(flag);
+    group.position.set(x, 0, z);
+    return group;
+  } catch (e) { return null; }
 }
 
 /** 训练靶：木桩 + Canvas 靶心环 */

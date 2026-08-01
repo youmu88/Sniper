@@ -159,13 +159,25 @@ export class Enemy3D {
     return refs;
   }
 
-  /** 应用红外热成像发光态：active=true 开镜白热，false 关镜暗红；激怒时更亮偏橙 */
+  /** 应用红外热成像发光态：active=true 开镜白热，false 关镜暗红；激怒时更亮偏橙
+   *  隐蔽敌人(hidden)使用冷色(蓝白)热成像，与普通敌人红热区分，强化侦察-猎杀流程 */
   _applyThermal(mat, isCore, isEye, active) {
     const enrageBoost = this.enraged ? 0.55 : 0;
     if (this.kind === 'boss' && (isCore || isEye)) {
       // Boss 核心/眼睛自身发光，热成像下进一步拉亮
       mat.emissive = new THREE.Color(active ? 0xffaa44 : 0xff4400);
       mat.emissiveIntensity = active ? 2.4 : (mat.emissiveIntensity || 0.6);
+      return;
+    }
+    if (this.hidden) {
+      // 隐蔽敌人：蓝白冷色热源（夜视仪"低温信号"）
+      if (active) {
+        mat.emissive = new THREE.Color(this.enraged ? 0x88ccff : 0x66bbff);
+        mat.emissiveIntensity = 1.7 + enrageBoost;
+      } else {
+        mat.emissive = new THREE.Color(this.enraged ? 0x2a5a8a : 0x16324a);
+        mat.emissiveIntensity = 0.3 + enrageBoost * 0.3;
+      }
       return;
     }
     if (active) {

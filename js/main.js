@@ -191,7 +191,16 @@ function update(dt) {
   // 开镜缩放 + 滚轮跳放大倍数
   fpsCam.setZoom(input.zoom);
   const scopeDelta = input.consumeScopeDelta();
-  if (scopeDelta !== 0 && input.zoom) fpsCam.cycleScope(scopeDelta);
+  if (scopeDelta !== 0 && input.zoom) {
+    fpsCam.cycleScope(scopeDelta);
+    // 刻度环脉冲提示（跳档瞬间）
+    const dial = document.querySelector('#scope-ring .scope-dial');
+    if (dial) {
+      dial.classList.remove('zoom-pulse');
+      void dial.offsetWidth; // 强制重排以重启动画
+      dial.classList.add('zoom-pulse');
+    }
+  }
   fpsCam.update(dt);
 
   // 镜内倍率显示
