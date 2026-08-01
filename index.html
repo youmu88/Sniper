@@ -49,12 +49,8 @@
     #scope-crosshair::after { width:1.5px; height:40px; top:-20px; left:-1px; }
     /* 中心细密点 */
     #scope-center-dot { position:absolute; top:50%; left:50%; width:4px; height:4px; transform:translate(-50%,-50%); border-radius:50%; background:#ff4422; box-shadow:0 0 6px rgba(255,60,20,1); }
-    /* 四向刻度 */
+    /* 四向刻度（已移除箭头，保留样式类兼容） */
     .scope-tick { position:absolute; color:#ff5533; font-size:12px; font-weight:700; text-shadow:0 0 5px #000; }
-    .scope-tick-top { top:5%; left:50%; transform:translateX(-50%); }
-    .scope-tick-bottom { bottom:5%; left:50%; transform:translateX(-50%); }
-    .scope-tick-left { top:50%; left:1%; transform:translateY(-50%); }
-    .scope-tick-right { top:50%; right:1%; transform:translateY(-50%); }
     /* 细密位线：8 根（0/45/90/135°） */
     .scope-mil { position:absolute; background:rgba(255,85,51,0.5); }
     .scope-mil-n { top:9%; left:50%; width:1px; height:14%; transform:translateX(-50%); }
@@ -67,7 +63,8 @@
     .scope-mil-se { bottom:21%; left:21%; width:10%; height:1px; transform:rotate(-45deg); transform-origin:center; }
     #scope-range { bottom:9%; left:50%; transform:translateX(-50%); font-size:14px; letter-spacing:2px; }
     /* 红外模式标签 */
-    .scope-mode { top:-2%; right:50%; transform:translateX(50%); font-size:12px; color:#ff6a3a; letter-spacing:2px; text-shadow:0 0 6px rgba(255,60,20,0.8); background:rgba(40,8,4,0.6); padding:2px 10px; border-radius:4px; border:1px solid rgba(255,80,40,0.4); }
+    /* 红外模式标签（圈内顶部，避免 overflow:hidden 裁剪） */
+    .scope-mode { top:2.8%; left:50%; transform:translateX(-50%); font-size:12px; color:#ff6a3a; letter-spacing:2px; text-shadow:0 0 6px rgba(255,60,20,0.8); background:rgba(40,8,4,0.6); padding:2px 12px; border-radius:4px; border:1px solid rgba(255,80,40,0.4); white-space:nowrap; }
 
     /* Hitmarker 命中标记（白 X 命中 / 红 X 击杀） */
     #hitmarker { position:fixed; top:50%; left:50%; width:26px; height:26px; transform:translate(-50%,-50%); opacity:0; pointer-events:none; z-index:16; }
@@ -137,11 +134,7 @@
       <div class="scope-dial"></div>
       <div id="scope-crosshair"></div>
       <div id="scope-center-dot"></div>
-      <!-- 四向密位刻度 -->
-      <div class="scope-tick scope-tick-top">▲</div>
-      <div class="scope-tick scope-tick-bottom">▼</div>
-      <div class="scope-tick scope-tick-left">◀</div>
-      <div class="scope-tick scope-tick-right">▶</div>
+      <!-- 密位刻度环（由 .scope-dial 呈现） -->
       <!-- 细密位线（8 根：0/45/90/135°） -->
       <div class="scope-mil scope-mil-n"></div>
       <div class="scope-mil scope-mil-s"></div>

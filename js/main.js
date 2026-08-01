@@ -245,10 +245,11 @@ function update(dt) {
             enemyRef.takeDamage(dmg);
           }
 
-          // 敌人狂暴提示（首次激怒时 HUD 提示）
+          // 敌人狂暴提示（首次激怒时 HUD 提示 + 警告音效）
           if (enemyRef.enraged && !enemyRef._enrageNotified) {
             enemyRef._enrageNotified = true;
             hud.showEnrageNotice();
+            playSound('sniperWarn');
           }
 
           if (!enemyRef.alive) {
