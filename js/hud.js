@@ -5,8 +5,6 @@
 
 export class HUD {
   constructor() {
-    this.onLevelSelect = null;
-    this.onMenuStart = null;
     this._bindUI();
   }
 
@@ -21,6 +19,7 @@ export class HUD {
       name: document.getElementById('hudName'),
       enemy: document.getElementById('hudEnemy'),
       allyHp: document.getElementById('hudAllyHp'),
+      allyWait: document.getElementById('hudAllyWait'),
       ammo: document.getElementById('hudAmmo'),
       stat: document.getElementById('hudStat'),
       combo: document.getElementById('hudCombo'),
@@ -33,10 +32,6 @@ export class HUD {
       scopeOverlay: document.getElementById('scope-overlay'),
       controlsHint: document.getElementById('controls-hint'),
     };
-  }
-
-  init(state) {
-    this.showMenuScreen();
   }
 
   showScreen(name) {
@@ -61,6 +56,7 @@ export class HUD {
     if (this.el.name) this.el.name.textContent = data.levelName || '-';
     if (this.el.enemy) this.el.enemy.textContent = `敌方 ${data.enemiesAlive ?? '?'}`;
     if (this.el.allyHp) this.el.allyHp.textContent = `队友 ${data.allyHp ?? '?'}%`;
+    if (this.el.allyWait) this.el.allyWait.style.display = data.allyWaiting ? 'inline' : 'none';
     if (this.el.ammo) this.el.ammo.textContent = `弹药 ${data.ammo ?? '?'}`;
     if (this.el.stat) this.el.stat.textContent = `击杀 ${data.kills ?? 0}`;
 
@@ -91,24 +87,23 @@ export class HUD {
     const wrap = this.el.levelGrid;
     if (!wrap) return;
     wrap.innerHTML = '';
-    const levelNames = [
-      { id: 1, name: '初出茅庐' }, { id: 2, name: '稳步推进' },
-      { id: 3, name: '火力集结' }, { id: 4, name: '夜色迷踪' },
-      { id: 5, name: '敌后穿插' }, { id: 6, name: '火力压制' },
-      { id: 7, name: '铁血长廊' }, { id: 8, name: '终极 Boss' },
-    ];
-    levelNames.forEach(lv => {
+    // 关卡定义：优先使用传入 levels，否则回退默认列表
+    const list = (Array.isArray(levels) && levels.length)
+      ? levels
+      : [
+          { id: 1, name: '初出茅庐' }, { id: 2, name: '稳步推进' },
+          { id: 3, name: '火力集结' }, { id: 4, name: '夜色迷踪' },
+          { id: 5, name: '敌后穿插' }, { id: 6, name: '火力压制' },
+          { id: 7, name: '铁血长廊' }, { id: 8, name: '终极 Boss' },
+        ];
+    list.forEach(lv => {
       const btn = document.createElement('div');
       btn.className = 'levelCard' + (lv.id > unlocked ? ' locked' : '');
+      btn.dataset.levelId = lv.id; // 供 main.js 事件委托读取关卡 ID
       const st = stars[lv.id] || 0;
       btn.innerHTML = `<div class="lvNum">${lv.id}</div>
         <div class="lvName">${lv.name}</div>
         <div class="lvMeta">${'★'.repeat(Math.min(3, st)) || (lv.id > unlocked ? '🔒' : '')}</div>`;
-      if (lv.id <= unlocked) {
-        btn.addEventListener('click', () => {
-          if (this.onLevelSelect) this.onLevelSelect(lv.id);
-        });
-      }
       wrap.appendChild(btn);
     });
   }

@@ -44,19 +44,17 @@ export class InputManager {
     document.addEventListener('mousedown', (e) => {
       if (!this.pointerLocked) return;
       if (e.button === 0) { this.shootBuffer = true; this.shooting = true; }
-      if (e.button === 2) { this.zoom = true; }
+      if (e.button === 2) { this.zoom = !this.zoom; } // 右键点击切换开/关镜
     });
 
     document.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.shooting = false;
-      if (e.button === 2) this.zoom = false;
     });
 
     document.addEventListener('contextmenu', (e) => e.preventDefault());
 
     document.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.zoom = true;
       if (e.code === 'Escape' && this.pointerLocked) {
         document.exitPointerLock();
       }
@@ -68,7 +66,6 @@ export class InputManager {
 
     document.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.zoom = false;
     });
   }
 
@@ -93,4 +90,7 @@ export class InputManager {
       document.exitPointerLock();
     }
   }
+
+  /** 复位开镜状态（关卡切换/结算时调用） */
+  resetZoom() { this.zoom = false; }
 }

@@ -18,3 +18,19 @@ html, body {
 .screen {
   backdrop-filter: blur(2px);
 }
+
+/* 连击提示：独立背景色以区分离线式 HUD 常规项 */
+#hud #hudCombo {
+  background: rgba(240, 193, 90, 0.18);
+  border: 1px solid rgba(240, 193, 90, 0.55);
+  color: #ffd34d;
+  text-shadow: 0 0 6px rgba(255, 178, 46, 0.6);
+  font-weight: 700;
+  animation: combo-pop 0.25s ease-out;
+}
+
+@keyframes combo-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}

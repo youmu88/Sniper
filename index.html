@@ -27,6 +27,7 @@
     #hud span { background:rgba(0,0,0,0.5); padding:4px 10px; border-radius:6px; backdrop-filter:blur(2px); }
     #hudBoss { color:#ff5e5e; font-weight:700; }
     #hudCombo { display:none; color:#ffb84d; font-weight:700; }
+    #hudAllyWait { color:#ffd34d; font-weight:700; }
     #hudProg { position:fixed; top:48px; left:12px; right:12px; height:5px; background:rgba(0,0,0,0.5); border-radius:3px; overflow:hidden; z-index:20; }
     #hudProgFill { height:100%; width:0%; background:linear-gradient(90deg,#3fae4a,#7fd0ff); border-radius:3px; transition:width .2s; }
 
@@ -78,13 +79,14 @@
     <span id="hudName">-</span>
     <span id="hudEnemy">敌方 -</span>
     <span id="hudAllyHp">队友 -</span>
+    <span id="hudAllyWait" style="display:none">⚠ 队友等待掩护</span>
     <span id="hudAmmo">弹药 -</span>
     <span id="hudStat">击杀 -</span>
     <span id="hudCombo"></span>
     <span id="hudBoss" style="display:none"></span>
   </div>
   <div id="hudProg"><div id="hudProgFill"></div></div>
-  <div id="controls-hint">🖱 鼠标瞄准 · 左键射击 · 右键开镜 · ESC暂停</div>
+  <div id="controls-hint">🖱 鼠标瞄准 · 左键射击 · 右键开/关镜 · ESC暂停</div>
 
   <!-- Scope Overlay -->
   <div id="scope-overlay">
@@ -107,7 +109,7 @@
     <h2>Sniper Cover Duty · 3D</h2>
     <div id="objective">你是隐藏在制高点的狙击手，从3D瞄准镜中观察战场，<br>狙杀纵深距离上的敌人，掩护小队穿越战区。</div>
     <div style="margin-top:22px"><button class="btn" id="btnStart">开始任务</button></div>
-    <div class="tip">🖱 鼠标环顾战场 · 左键射击 · 右键开镜放大<br>🎯 瞄准不同距离的敌人，注意弹道下坠</div>
+    <div class="tip">🖱 鼠标环顾战场 · 左键射击 · 右键开镜放大 · ESC暂停<br>🎯 瞄准不同距离的敌人，注意弹道下坠</div>
   </div>
 
   <div class="screen" id="screen-select">

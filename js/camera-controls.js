@@ -51,11 +51,12 @@ export class CameraControls {
     this.zoomProgress = 1 - (this._smoothFov - SCOPE_FOV) / (DEFAULT_FOV - SCOPE_FOV);
   }
 
-  /** 鼠标移动增量 */
+  /** 鼠标移动增量（开镜时灵敏度随 FOV 比例降低，便于精细调整） */
   rotate(dx, dy) {
     if (!this.isLocked) return;
-    this.yaw -= dx * SENSITIVITY;
-    this.pitch -= dy * SENSITIVITY;
+    const sens = SENSITIVITY * (this._smoothFov / DEFAULT_FOV);
+    this.yaw -= dx * sens;
+    this.pitch -= dy * sens;
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
   }
 

@@ -14,6 +14,7 @@ import { Weapon } from './weapon.js';
 import { ParticleSystem } from './particles.js';
 import { HUD } from './hud.js';
 import { LEVELS } from './levels.js';
+import { computeAllyAdvance } from './ally-logic.js';
 
 const GROUND_Y = 0;
 
@@ -41,6 +42,7 @@ const hud = new HUD();
 
 let terrain, buildings, sniperNest;
 let ally, enemies = [];
+let allyWaiting = false;
 let enemyBullets = [];
 let levelDef = null;
 let lastTime = 0;
@@ -82,6 +84,7 @@ function loadLevel(id) {
   // 重置相机与武器
   fpsCam.reset();
   weapon.reset();
+  input.resetZoom();
 
   // 队友（从 allyStart 读取）
   const startX = def.allyStart?.x ?? -18;
@@ -224,12 +227,13 @@ function update(dt) {
             enemyRef.takeDamage(dmg);
           }
 
-          if (!enemyRef.alive) {
+                      if (!enemyRef.alive) {
             STATE.stats.kills++;
             STATE.combo++;
             STATE.comboTimer = 2;
             if (result.isWeakSpot || result.isCore) STATE.stats.weakKills++;
             particles.burstExplosion(result.point, enemyRef.kind === 'boss');
+            if (enemyRef.kind !== 'boss') particles.bloodMist(result.point);
             playSound('kill');
           } else {
             playSound('hit');
@@ -243,9 +247,12 @@ function update(dt) {
     }
   }
 
-  // 队友更新
+  // 队友更新（推进受前方威胁阻挡：清敌后才能继续前进）
   if (ally) {
-    ally.update(dt, ally.goalX || 18);
+    const threatXs = enemies.filter(e => e.alive && e.spawned).map(e => e.x);
+    const adv = computeAllyAdvance(ally.x, ally.goalX ?? 18, threatXs);
+    ally.update(dt, adv.targetX, adv.waiting);
+    allyWaiting = adv.waiting && ally.alive && !ally.reached;
   }
 
   // 敌人更新
@@ -262,6 +269,10 @@ function update(dt) {
     }
     if (res?.killed) {
       particles.burstExplosion(new THREE.Vector3(e.x, 1, e.z), e.kind === 'boss');
+    }
+    if (res?.melee && ally && ally.alive) {
+      ally.takeDamage(25); // 冲锋兵贴身自爆
+      playSound('hit');
     }
   });
 
@@ -306,6 +317,7 @@ function update(dt) {
     kills: STATE.stats.kills,
     combo: STATE.combo,
     progress,
+    allyWaiting,
     bossHp: boss ? Math.round(boss.hp / boss.maxHp * 100) : 0,
   });
 }
@@ -317,11 +329,17 @@ function spawnEnemyBullet(x, z) {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(x, 1.0, z);
   scene.add(mesh);
+  // 固定弹速朝队友当前位置飞行（弹速不随距离变化）
+  const BULLET_SPEED = 10;
+  const tx = ally ? ally.x : 0;
+  const tz = ally ? ally.z : -12;
+  const dx = tx - x, dz = tz - z;
+  const dist = Math.hypot(dx, dz) || 1;
   enemyBullets.push({
     mesh,
-    vx: (ally ? ally.x - x : 0) * 0.5,
-    vz: (ally ? ally.z - z : 0) * 0.5,
-    life: 2.0,
+    vx: (dx / dist) * BULLET_SPEED,
+    vz: (dz / dist) * BULLET_SPEED,
+    life: dist / BULLET_SPEED + 0.6,
   });
 }
 
@@ -363,6 +381,8 @@ function winLevel() {
   saveProgress();
   playSound('victory');
   hud.showWinScreen(rating, STATE);
+  input.resetZoom();
+  document.getElementById('scope-overlay').classList.remove('active');
   input.unlockPointer();
 }
 
@@ -370,6 +390,8 @@ function loseLevel() {
   STATE.screen = 'dead';
   playSound('defeat');
   hud.showDeadScreen();
+  input.resetZoom();
+  document.getElementById('scope-overlay').classList.remove('active');
   input.unlockPointer();
 }
 

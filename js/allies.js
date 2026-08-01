@@ -77,24 +77,40 @@ export class Ally3D {
 
   hpRatio() { return Math.max(0, this.hp / this.maxHp); }
 
-  update(dt, goalX) {
+  /**
+   * @param {number} dt
+   * @param {number} targetX 本帧推进目标（由 main.js 根据前方威胁计算）
+   * @param {boolean} waiting 是否已停在保持线等待掩护
+   */
+  update(dt, targetX, waiting) {
     if (!this.alive || this.reached) return;
     this.walkT += dt;
+    this.waiting = !!waiting;
 
-    if (this.x < goalX) {
+    const parts = this.mesh.userData.parts;
+    if (this.x < targetX) {
       this.x += this.speed * dt;
+      if (this.x > targetX) this.x = targetX;
       this.mesh.position.x = this.x;
-      // 行走动画（腿部摆动）
+      // 行走动画（四肢摆动）
       const swing = Math.sin(this.walkT * 12) * 0.15;
-      const parts = this.mesh.userData.parts;
       if (parts) {
         parts.lLeg.position.x = -0.15 + swing * 0.3;
         parts.rLeg.position.x = 0.15 - swing * 0.3;
         parts.lArm.position.x = -0.39 - swing * 0.15;
         parts.rArm.position.x = 0.39 + swing * 0.15;
+        parts.body.position.y = 1.0;
       }
     } else {
-      this.reached = true;
+      // 停等/待机：四肢复位 + 呼吸浮动
+      if (parts) {
+        parts.lLeg.position.x = -0.15;
+        parts.rLeg.position.x = 0.15;
+        parts.lArm.position.x = -0.39;
+        parts.rArm.position.x = 0.39;
+        parts.body.position.y = 1.0 + Math.sin(this.walkT * 2.2) * 0.02;
+      }
+      if (this.x >= (this.goalX ?? targetX)) this.reached = true;
     }
 
     if (this.hurtFlash > 0) this.hurtFlash -= dt;

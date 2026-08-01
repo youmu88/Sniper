@@ -35,9 +35,10 @@ export class Enemy3D {
     this.dir = 1;
     this.visible = true;
 
-    // 巡逻范围
-    this.minX = cfg.minX != null ? cfg.minX : this.x - 4;
-    this.maxX = cfg.maxX != null ? cfg.maxX : this.x + 4;
+    // 巡逻范围（levels 用 range 简写：x ± range；显式 minX/maxX 优先）
+    const range = cfg.range != null ? cfg.range : 4;
+    this.minX = cfg.minX != null ? cfg.minX : this.x - range;
+    this.maxX = cfg.maxX != null ? cfg.maxX : this.x + range;
     this.minZ = cfg.minZ != null ? cfg.minZ : this.z;
     this.maxZ = cfg.maxZ != null ? cfg.maxZ : this.z;
 
@@ -74,6 +75,8 @@ export class Enemy3D {
 
     // 受伤闪烁
     this.hurtFlash = 0;
+    // 行走动画计时
+    this.walkT = 0;
   }
 
   _createHPBar() {
@@ -113,20 +116,42 @@ export class Enemy3D {
 
   moveUpdate(dt, allyX) {
     if (!this.alive || !this.spawned) return;
+    let moving = false;
     if (this.kind === 'patrol' && this.speed > 0) {
       this.x += this.dir * this.speed * dt;
       if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
       if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
       this.mesh.rotation.y = this.dir > 0 ? 0 : Math.PI;
+      moving = true;
     } else if (this.kind === 'charger' && this.speed > 0) {
       const dx = allyX - this.x;
       const d = Math.sign(dx);
-      if (Math.abs(dx) > 3) { this.x += d * this.speed * dt; }
+      if (Math.abs(dx) > 3) { this.x += d * this.speed * dt; moving = true; }
       this.mesh.rotation.y = d > 0 ? 0 : Math.PI;
     } else {
       this.mesh.rotation.y = allyX >= this.x ? 0 : Math.PI;
     }
     this.mesh.position.x = this.x;
+    this._animateWalk(dt, moving);
+  }
+
+  /** 行走/待机动画：移动时四肢摆动，停止时复位（Boss 等非人形跳过） */
+  _animateWalk(dt, moving) {
+    const parts = this.mesh.userData.parts;
+    if (!parts || !parts.lLeg) return;
+    if (moving) {
+      this.walkT += dt;
+      const swing = Math.sin(this.walkT * 12) * 0.15;
+      parts.lLeg.position.x = -0.15 + swing * 0.3;
+      parts.rLeg.position.x = 0.15 - swing * 0.3;
+      parts.lArm.position.x = -0.39 - swing * 0.15;
+      parts.rArm.position.x = 0.39 + swing * 0.15;
+    } else {
+      parts.lLeg.position.x = -0.15;
+      parts.rLeg.position.x = 0.15;
+      parts.lArm.position.x = -0.39;
+      parts.rArm.position.x = 0.39;
+    }
   }
 
   fireUpdate(dt, allyAlive) {
@@ -228,6 +253,14 @@ export class Enemy3D {
     this.moveUpdate(dt, allyX);
     this.peekUpdate(dt);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
+
+    // 冲锋兵贴身自爆：对队友造成近战伤害，自身阵亡
+    if (this.kind === 'charger' && allyAlive && Math.abs(allyX - this.x) <= 2.5) {
+      this.hp = 0;
+      this.alive = false;
+      this.mesh.visible = false;
+      return { killed: true, melee: true, kind: this.kind, x: this.x, z: this.z };
+    }
 
     if (this.hp <= 0) {
       this.alive = false;
