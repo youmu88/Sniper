@@ -1,69 +1,134 @@
 /* ============================================================
- * allies.js — 队友：自动沿路径推进，受敌方火力伤害，携带HP
+ * allies.js — 3D 队友推进逻辑
  * ============================================================ */
-(function (global) {
-  'use strict';
-  const S = global.Sniper = global.Sniper || {};
+import * as THREE from 'three';
+import { createCharacter } from './characters.js';
 
-  function Ally(cfg, spriteFactory) {
-    this.x = cfg.x;
-    this.baseY = 0;            // 会被 groundH 校准
-    this.hp = cfg.hp;
-    this.maxHp = cfg.hp;
-    this.speed = cfg.speed;
+const GROUND_Y = 0;
+
+export class Ally3D {
+  constructor(cfg) {
+    this.x = cfg.x || -18;
+    this.z = cfg.z || -12;
+    this.speed = cfg.speed || 28;
+    this.hp = cfg.hp || 100;
+    this.maxHp = this.hp;
     this.alive = true;
     this.reached = false;
-    this.walkT = 0;
+
+    // 3D 模型
+    this.mesh = createCharacter('ally', 0.9);
+    this.mesh.position.set(this.x, GROUND_Y, this.z);
+
+    // 血条
+    this.hpBar = this._createHPBar();
+    this.mesh.add(this.hpBar);
+
+    // 标签
+    this.label = this._createLabel();
+    this.mesh.add(this.label);
+
     this.hurtFlash = 0;
-    this.sprite = (spriteFactory || S.sprites.fighter || function(){ return null; })('ally');
-    this.scale = 3.2;
+    this.walkT = 0;
   }
 
-  Ally.prototype.update = function (dt, goalX) {
+  _createHPBar() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 44; canvas.height = 5;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 44, 5);
+    ctx.fillStyle = '#3fae4a'; ctx.fillRect(0, 0, 44, 5);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.y = 2.4;
+    sprite.scale.set(0.7, 0.08, 1);
+    sprite.userData.canvas = canvas;
+    sprite.userData.ctx = ctx;
+    return sprite;
+  }
+
+  _createLabel() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 20;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🤝 队友', 32, 16);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.y = 2.8;
+    sprite.scale.set(0.8, 0.25, 1);
+    return sprite;
+  }
+
+  updateHPBar() {
+    const c = this.hpBar.userData.canvas;
+    const ctx = this.hpBar.userData.ctx;
+    const ratio = Math.max(0, this.hp / this.maxHp);
+    ctx.clearRect(0, 0, 44, 5);
+    ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 44, 5);
+    ctx.fillStyle = ratio > 0.3 ? '#3fae4a' : '#e05555';
+    ctx.fillRect(0, 0, 44 * ratio, 5);
+    this.hpBar.material.map.needsUpdate = true;
+  }
+
+  hpRatio() { return Math.max(0, this.hp / this.maxHp); }
+
+  update(dt, goalX) {
     if (!this.alive || this.reached) return;
     this.walkT += dt;
-    this.movedStep = false;
+
     if (this.x < goalX) {
       this.x += this.speed * dt;
-      this.movedStep = true;
+      this.mesh.position.x = this.x;
+      // 行走动画（腿部摆动）
+      const swing = Math.sin(this.walkT * 12) * 0.15;
+      const parts = this.mesh.userData.parts;
+      if (parts) {
+        parts.lLeg.position.x = -0.15 + swing * 0.3;
+        parts.rLeg.position.x = 0.15 - swing * 0.3;
+        parts.lArm.position.x = -0.39 - swing * 0.15;
+        parts.rArm.position.x = 0.39 + swing * 0.15;
+      }
     } else {
       this.reached = true;
     }
-    if (this.hurtFlash > 0) this.hurtFlash -= dt;
-    if (this.hp <= 0) this.alive = false;
-  };
 
-  Ally.prototype.takeDamage = function (dmg) {
+    if (this.hurtFlash > 0) this.hurtFlash -= dt;
+    if (this.hp <= 0) {
+      this.alive = false;
+      this.mesh.visible = false;
+    }
+    this.updateHPBar();
+  }
+
+  takeDamage(dmg) {
     if (!this.alive) return;
     this.hp -= dmg;
     this.hurtFlash = 0.15;
-  };
+    // 闪烁
+    this.mesh.traverse(child => {
+      if (child.isMesh) child.material.emissive = new THREE.Color(0xff4444);
+    });
+    setTimeout(() => {
+      if (this.alive) {
+        this.mesh.traverse(child => {
+          if (child.isMesh) child.material.emissive = new THREE.Color(0x000000);
+        });
+      }
+    }, 100);
+  }
 
-  Ally.prototype.draw = function (ctx, cam) {
-    if (!this.alive) return;
-    const frame = this.reached ? 0 : (1 + (Math.floor(this.walkT * 10) % 2));
-    const sp = (S.sprites.fighter || function(){ return this.sprite; })('ally', frame) || this.sprite;
-    const sx = sp.width * this.scale;
-    const sy = sp.height * this.scale;
-    const x = cam.x(this.x) - sx / 2;
-    const y = cam.y(this.baseY) - sy;
-    if (this.hurtFlash > 0) ctx.filter = 'brightness(2)';
-    ctx.drawImage(sp, x, y, sx, sy);
-    ctx.filter = 'none';
-    const bw = 44, bh = 5;
-    ctx.fillStyle = '#333';
-    ctx.fillRect(cam.x(this.x) - bw / 2, y - 12, bw, bh);
-    ctx.fillStyle = this.hpRatio() > 0.3 ? '#3fae4a' : '#e05555';
-    ctx.fillRect(cam.x(this.x) - bw / 2, y - 12, bw * this.hpRatio(), bh);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('队友', cam.x(this.x), y - 16);
-  };
-
-  Ally.prototype.hpRatio = function () {
-    return Math.max(0, this.hp / this.maxHp);
-  };
-
-  S.Ally = Ally;
-})(typeof window !== 'undefined' ? window : this);
+  dispose(scene) {
+    scene.remove(this.mesh);
+    this.mesh.traverse(child => {
+      if (child.isMesh) {
+        child.geometry?.dispose();
+        child.material?.dispose();
+      }
+    });
+  }
+}

@@ -1,245 +1,260 @@
 /* ============================================================
- * enemies.js — 敌人 AI
- * 支持多兵种：静止兵、巡逻兵、冲锋兵、掩体探头兵、重甲兵、敌方狙击手、Boss
+ * enemies.js — 3D 敌人 AI
+ * 兵种：静止/巡逻/冲锋/掩体/狙击手/重甲/Boss
  * ============================================================ */
-(function (global) {
-  'use strict';
-  const S = global.Sniper = global.Sniper || {};
+import * as THREE from 'three';
+import { createCharacter, createBossCharacter } from './characters.js';
 
-  function Enemy(cfg, groundH) {
+const GROUND_Y = 0;
+
+// 兵种配置
+const ENEMY_CFG = {
+  stationary: { hp: 1, speed: 0, fireRate: 0.8, scale: 0.9 },
+  patrol: { hp: 1, speed: 18, fireRate: 0.6, scale: 0.9 },
+  charger: { hp: 3, speed: 55, fireRate: 0, scale: 0.9 },
+  crouch: { hp: 2, speed: 0, fireRate: 0.6, scale: 0.9 },
+  sniper: { hp: 4, speed: 0, fireRate: 1.0, scale: 0.9 },
+  heavy: { hp: 6, speed: 0, fireRate: 1.0, scale: 1.0 },
+  boss: { hp: 40, speed: 0, fireRate: 1.3, scale: 1.2 },
+};
+
+export class Enemy3D {
+  constructor(cfg) {
     this.kind = cfg.kind || 'stationary';
-    this.x = cfg.x;
-    this.baseY = groundH;   // 地面高度
-    this.y = groundH;       // 逻辑 y（底部地面）
-    this.minX = cfg.xMin != null ? cfg.xMin : this.x - (cfg.range || 0);
-    this.maxX = cfg.xMax != null ? cfg.xMax : this.x + (cfg.range || 0);
-    this.dir = 1;
-    this.hp = cfg.hp != null ? cfg.hp : 1;
+    const def = ENEMY_CFG[this.kind] || ENEMY_CFG.stationary;
+    this.hp = cfg.hp != null ? cfg.hp : def.hp;
     this.maxHp = this.hp;
-    this.fireRate = cfg.fireRate || 0;   // 每秒射击次数，0 = 不射击
-    this.speed = cfg.speed || 0;
+    this.speed = cfg.speed != null ? cfg.speed : def.speed;
+    this.fireRate = cfg.fireRate != null ? cfg.fireRate : def.fireRate;
+    this.x = cfg.x || 0;
+    this.z = cfg.z || -15;
+    this.fireTimer = Math.random() * (1 / (this.fireRate || 1));
     this.alive = true;
+    this.spawned = !cfg.delay || cfg.delay <= 0;
+    this.delay = cfg.delay || 0;
+    this.dir = 1;
+    this.visible = true;
 
-    // 掩体探头兵参数
-    this.peekInterval = cfg.peekInterval || 0;
-    this.peekDur = cfg.peekDur || 0;
+    // 巡逻范围
+    this.minX = cfg.minX != null ? cfg.minX : this.x - 4;
+    this.maxX = cfg.maxX != null ? cfg.maxX : this.x + 4;
+    this.minZ = cfg.minZ != null ? cfg.minZ : this.z;
+    this.maxZ = cfg.maxZ != null ? cfg.maxZ : this.z;
+
+    // 掩体探头
+    this.peekInterval = cfg.peekInterval || 2.0;
+    this.peekDur = cfg.peekDur || 1.0;
     this.peekTimer = Math.random() * this.peekInterval;
-    this.visible = true;    // 探头可见
 
-    // 敌方狙击手：瞄准时间后发射一发高伤子弹，且需玩家对其开火才击杀
-    this.aimTime = cfg.aimTime || 0;
+    // 狙击手瞄準
+    this.aimTime = cfg.aimTime || 1.5;
     this.aimProgress = 0;
     this.aiming = false;
 
-    // 冲锋兵/巡逻计时
-    this.fireTimer = Math.random() * (1 / (this.fireRate || 1));
-
-    // 出场延迟
-    this.delay = cfg.delay || 0;
-    this.spawned = this.delay <= 0;
-
-    // Boss 附加
+    // Boss
     this.bossPhase = 0;
     this.phaseAt = cfg.phaseAt || 0;
-    this.coreVulnerable = cfg.coreVulnerable || false;
-    this.boss = cfg.kind === 'boss';
+    this.coreVulnerable = false;
+    this.coreTimer = 0;
+    this.barrageTimer = 4;
 
-    this.colorKey = this.boss ? 'boss' : (this.kind === 'heavy' ? 'heavy' : 'enemy');
-    this.scale = this.boss ? 4 : 3.2;
-    this.animT = 0;          // 走路动画计时
-    this.moving = false;     // 本帧是否在移动
+    // 创建3D模型
+    const colorKey = this.kind === 'boss' ? 'boss' : this.kind === 'heavy' ? 'heavy' : 'enemy';
+    this.mesh = this.kind === 'boss' ? createBossCharacter() : createCharacter(colorKey, def.scale);
+    this.mesh.position.set(this.x, GROUND_Y, this.z);
+    this.mesh.userData.isEnemy = true;
+    this.mesh.userData.enemyRef = this;
+
+    // 面向队友（默认朝+ x方向）
+    this.mesh.rotation.y = 0;
+
+    // 血条（精灵）
+    this.hpBar = this._createHPBar();
+    this.mesh.add(this.hpBar);
+
+    // 受伤闪烁
     this.hurtFlash = 0;
-    this.floatY = 0;
-
-    // 面向队友（默认朝左=朝队友推进方向）
-    this.facing = -1;
   }
 
-  // 敌人是否在当前时刻可被击杀/可见
-  Enemy.prototype.isVisible = function () {
-    return this.alive && this.spawned && this.visible;
-  };
+  _createHPBar() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 40; canvas.height = 5;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 40, 5);
+    ctx.fillStyle = '#e05555'; ctx.fillRect(0, 0, 40, 5);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.y = 2.2;
+    sprite.scale.set(0.6, 0.08, 1);
+    sprite.userData.canvas = canvas;
+    sprite.userData.ctx = ctx;
+    return sprite;
+  }
 
-  Enemy.prototype.spawnUpdate = function (dt) {
+  updateHPBar() {
+    const c = this.hpBar.userData.canvas;
+    const ctx = this.hpBar.userData.ctx;
+    const ratio = Math.max(0, this.hp / this.maxHp);
+    ctx.clearRect(0, 0, 40, 5);
+    ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 40, 5);
+    ctx.fillStyle = ratio > 0.3 ? '#3fae4a' : '#e05555';
+    ctx.fillRect(0, 0, 40 * ratio, 5);
+    this.hpBar.material.map.needsUpdate = true;
+  }
+
+  isVisible() { return this.alive && this.spawned && this.visible; }
+
+  spawnUpdate(dt) {
     if (this.spawned) return;
     this.delay -= dt;
-    if (this.delay <= 0) this.spawned = true;
-  };
+    if (this.delay <= 0) { this.spawned = true; this.mesh.visible = true; }
+  }
 
-  // 移动（巡逻/冲锋）
-  Enemy.prototype.moveUpdate = function (dt, allyX) {
-    this.moving = false;
+  moveUpdate(dt, allyX) {
+    if (!this.alive || !this.spawned) return;
     if (this.kind === 'patrol' && this.speed > 0) {
       this.x += this.dir * this.speed * dt;
-      this.animT += dt; this.moving = true;
       if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
       if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
+      this.mesh.rotation.y = this.dir > 0 ? 0 : Math.PI;
     } else if (this.kind === 'charger' && this.speed > 0) {
-      // 朝队友逼近，但保持最小距离（挤压队友阵型但不过度贴脸）
       const dx = allyX - this.x;
       const d = Math.sign(dx);
-      if (Math.abs(dx) > 56) { this.x += d * this.speed * dt; this.animT += dt; this.moving = true; }
-      this.facing = dx >= 0 ? 1 : -1;
-    } else if (this.kind === 'stationary' || this.kind === 'crouch' || this.kind === 'heavy' || this.kind === 'sniper' || this.boss) {
-      // 保持静止，面向队友
-      this.facing = allyX >= this.x ? 1 : -1;
-    }
-  };
-
-  // 射击冲动返回是否在本帧开火，以及是否发射子弹
-  Enemy.prototype.fireUpdate = function (dt, allyAlive) {
-    this.fireTimer -= dt;
-    let fired = false;
-    // 冲锋兵与静止靶不射击的无所谓
-    if (this.fireRate > 0 && allyAlive && this.spawned && this.visible) {
-      if (this.kind === 'sniper') {
-        // 敌方狙击手：需要瞄准时间
-        if (!this.aiming) { this.aiming = true; this.aimProgress = 0; }
-        this.aimProgress += dt;
-        // 瞄准完成前 80% 时玩家仍可击杀；完成即发射
-        if (this.aimProgress >= this.aimTime) { this.aiming = false; fired = true; this.fireTimer = 1 / this.fireRate; }
-      } else {
-        if (this.fireTimer <= 0) { fired = true; this.fireTimer = 1 / this.fireRate; }
-      }
-    }
-    return fired;
-  };
-
-  // 掩体兵探头逻辑
-  Enemy.prototype.peekUpdate = function (dt) {
-    if (this.kind !== 'crouch') return;
-    if (this.visible) {
-      // 探头期间倒计时后缩回
-      this.peekTimer -= dt;
-      if (this.peekTimer <= 0) {
-        this.visible = false;
-        this.peekTimer = this.peekInterval;
-      }
+      if (Math.abs(dx) > 3) { this.x += d * this.speed * dt; }
+      this.mesh.rotation.y = d > 0 ? 0 : Math.PI;
     } else {
-      // 隐匿期间计时后探头
-      this.peekTimer -= dt;
-      if (this.peekTimer <= 0) {
-        this.visible = true;
-        this.peekTimer = this.peekDur;
-      }
+      this.mesh.rotation.y = allyX >= this.x ? 0 : Math.PI;
     }
-  };
+    this.mesh.position.x = this.x;
+  }
 
-  // Boss 阶段强化：核心暴露周期 + 第二阶段（提速/巡逻移动/弹幕）
-  Enemy.prototype.bossUpdate = function (dt) {
-    // 核心暴露周期：每 5s 一轮，后 2s 核心暴露（发光，弱点可重创）
-    this.coreTimer = (this.coreTimer || 0) + dt;
+  fireUpdate(dt, allyAlive) {
+    if (!this.alive || !this.spawned || !this.visible) return false;
+    if (this.fireRate <= 0 || !allyAlive) return false;
+    this.fireTimer -= dt;
+    if (this.kind === 'sniper') {
+      if (!this.aiming) { this.aiming = true; this.aimProgress = 0; }
+      this.aimProgress += dt;
+      if (this.aimProgress >= this.aimTime) {
+        this.aiming = false;
+        this.fireTimer = 1 / this.fireRate;
+        return true;
+      }
+      return false;
+    }
+    if (this.fireTimer <= 0) {
+      this.fireTimer = 1 / this.fireRate;
+      return true;
+    }
+    return false;
+  }
+
+  peekUpdate(dt) {
+    if (this.kind !== 'crouch') return;
+    this.peekTimer -= dt;
+    if (this.visible && this.peekTimer <= 0) {
+      this.visible = false;
+      this.peekTimer = this.peekInterval;
+      this.mesh.visible = false;
+    } else if (!this.visible && this.peekTimer <= 0) {
+      this.visible = true;
+      this.peekTimer = this.peekDur;
+      this.mesh.visible = true;
+    }
+  }
+
+  bossUpdate(dt) {
+    if (this.kind !== 'boss') return null;
+    this.coreTimer += dt;
     this.coreVulnerable = (this.coreTimer % 5) >= 3;
 
-    // 阶段检测：HP 降到 phaseAt 进入第二阶段
+    // 核心发光效果
+    const core = this.mesh.userData.parts?.core;
+    if (core) {
+      const intensity = this.coreVulnerable ? 1.0 : 0.3;
+      core.material.emissiveIntensity = intensity;
+      core.scale.setScalar(this.coreVulnerable ? 1.3 : 1.0);
+    }
+
     if (this.bossPhase === 0 && this.phaseAt > 0 && this.hp <= this.phaseAt) {
       this.bossPhase = 1;
-      this.fireRate = this.fireRate * 1.5;   // 射速提升 50%
-      this.speed = 42;                        // 开始巡逻移动
+      this.fireRate *= 1.5;
+      this.speed = 8;
       this.dir = -1;
-      this.minX = 660; this.maxX = 860;       // 巡逻范围
+      this.minX = -4; this.maxX = 4;
       this.barrageTimer = 4;
       return { phaseChange: true };
     }
-    // 第二阶段：左右巡逻 + 周期弹幕
     if (this.bossPhase >= 1) {
       if (this.speed > 0) {
         this.x += this.dir * this.speed * dt;
-        this.animT += dt; this.moving = true;
         if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
         if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
+        this.mesh.position.x = this.x;
       }
       this.barrageTimer -= dt;
-      if (this.barrageTimer <= 0) { this.barrageTimer = 4; return { barrage: true }; }
+      if (this.barrageTimer <= 0) {
+        this.barrageTimer = 4;
+        return { barrage: true };
+      }
     }
     return null;
-  };
+  }
 
-  Enemy.prototype.takeDamage = function (dmg) {
-    if (!this.isVisible()) return false;   // 看不见打不着（隐匿时免疫）
+  takeDamage(dmg) {
+    if (!this.isVisible()) return false;
     this.hp -= dmg;
     this.hurtFlash = 0.12;
+    this.updateHPBar();
+    // 闪烁效果
+    this.mesh.traverse(child => {
+      if (child.isMesh) child.material.emissive = new THREE.Color(0xffffff);
+    });
+    setTimeout(() => {
+      if (this.alive) {
+        this.mesh.traverse(child => {
+          if (child.isMesh) child.material.emissive = new THREE.Color(0x000000);
+        });
+      }
+    }, 80);
     return true;
-  };
+  }
 
-  Enemy.prototype.update = function (dt, allyX, allyAlive) {
+  update(dt, allyX, allyAlive) {
     if (!this.alive) return null;
     this.spawnUpdate(dt);
     if (!this.spawned) return null;
     this.moveUpdate(dt, allyX);
     this.peekUpdate(dt);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
-    // Boss 阶段强化逻辑（核心暴露周期/第二阶段）
-    let bossRes = null;
-    if (this.boss) bossRes = this.bossUpdate(dt);
-    // 死亡判定
-    if (this.hp <= 0) { this.alive = false; return { killed: true, kind: this.kind }; }
-    if (bossRes && bossRes.phaseChange) return { phaseChange: true };
+
+    if (this.hp <= 0) {
+      this.alive = false;
+      this.mesh.visible = false;
+      return { killed: true, kind: this.kind, x: this.x, z: this.z };
+    }
+
+    const bossRes = this.bossUpdate(dt);
     const fired = this.fireUpdate(dt, allyAlive);
-    if (bossRes && bossRes.barrage) return { shot: true, barrage: true };
-    if (fired) return { shot: true };
+    if (fired) {
+      return { fired: true, x: this.x, z: this.z, target: 'ally' };
+    }
+    if (bossRes) {
+      if (bossRes.phaseChange) return { phaseChange: true };
+      if (bossRes.barrage) return { barrage: true, x: this.x, z: this.z };
+    }
     return null;
-  };
+  }
 
-  Enemy.prototype.draw = function (ctx, cam) {
-    if (!this.alive || !this.spawned) return;
-    // 隐匿的掩体兵不画
-    if (this.kind === 'crouch' && !this.visible) {
-      // 画一个"!"提示
-      ctx.fillStyle = 'rgba(255,235,59,0.8)';
-      ctx.font = 'bold 22px system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('!', cam.x(this.x), cam.y(this.baseY) - 46);
-      return;
-    }
-    const frame = this.moving ? (1 + (Math.floor(this.animT * 10) % 2)) : 0;
-    const sp = this.boss ? S.sprites.boss(this.coreVulnerable) : S.sprites.fighter(this.colorKey, frame);
-    const sx = (sp ? sp.width : 10) * this.scale;
-    const sy = (sp ? sp.height : 14) * this.scale;
-    const drawY = cam.y(this.baseY) - sy + (this.kind === 'crouch' ? sy * 0.3 : 0);
-    const alpha = this.kind === 'sniper' && this.aiming ? 0.55 + 0.45 * Math.abs(Math.sin(this.aimProgress * 12)) : 1;
-    ctx.globalAlpha = alpha;
-    if (this.hurtFlash > 0) ctx.filter = 'brightness(2.4)';
-    if (sp) ctx.drawImage(sp, cam.x(this.x) - sx / 2, drawY, sx, sy);
-    ctx.filter = 'none';
-    ctx.globalAlpha = 1;
-
-    // 敌方狙击手瞄准线提示
-    if (this.kind === 'sniper' && this.aiming) {
-      ctx.strokeStyle = 'rgba(255,80,80,0.5)';
-      ctx.setLineDash([4, 6]);
-      ctx.beginPath();
-      ctx.moveTo(cam.x(this.x), drawY + sy / 2);
-      const ally = this._aimTarget;
-      if (ally) ctx.lineTo(cam.x(ally.x), cam.y(ally.baseY) - 30);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // 血条（多血量时显示）
-    if (this.maxHp > 1) {
-      const bw = 30, bh = 4;
-      ctx.fillStyle = '#222';
-      ctx.fillRect(cam.x(this.x) - bw / 2, drawY - 8, bw, bh);
-      ctx.fillStyle = this.boss ? '#a03' : '#e74c3c';
-      ctx.fillRect(cam.x(this.x) - bw / 2, drawY - 8, bw * (this.hp / this.maxHp), bh);
-    }
-
-    // Boss 血条（顶部单独画）
-    if (this.boss) this._drawBossBar(ctx, cam);
-  };
-
-  Enemy.prototype._drawBossBar = function (ctx, cam) {
-    const w = 320;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(cam.x(this.x) - w / 2, 20, w, 16);
-    ctx.fillStyle = '#c026d3';
-    ctx.fillRect(cam.x(this.x) - w / 2 + 2, 22, (w - 4) * (this.hp / this.maxHp), 12);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 13px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('BOSS 机甲', cam.x(this.x), 13);
-  };
-
-  S.Enemy = Enemy;
-})(typeof window !== 'undefined' ? window : this);
+  /** 清理场景中的 mesh */
+  dispose(scene) {
+    scene.remove(this.mesh);
+    this.mesh.traverse(child => {
+      if (child.isMesh) {
+        child.geometry?.dispose();
+        child.material?.dispose();
+      }
+    });
+  }
+}

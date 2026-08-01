@@ -1,70 +1,96 @@
 /* ============================================================
- * input.js — 鼠标/键盘输入管理
- * 维护点击、右键开镜、十字线位置、数字键切关等状态
+ * input.js — 3D 鼠标/键盘输入管理
  * ============================================================ */
-(function (global) {
-  'use strict';
-  const S = global.Sniper = global.Sniper || {};
+import * as THREE from 'three';
 
-  function Input(canvas) {
+export class InputManager {
+  constructor(canvas) {
     this.canvas = canvas;
-    this.mouse = { x: 0, y: 0, inCanvas: false };
-    this.zoom = false;      // 右键开镜
-    this.shooting = false;  // 按住鼠标左键
-    this.shootBuffer = false; // 本帧是否有点击待发射
+    this.mouse = new THREE.Vector2();
+    this.shooting = false;
+    this.zoom = false;
+    this.shootBuffer = false;
+    this.pointerLocked = false;
     this.keys = {};
-    this.attached = false;
+    this._onShoot = null;
+    this._onZoom = null;
+    this._onPause = null;
+    this._attach();
   }
 
-  Input.prototype.attach = function () {
-    if (this.attached) return;
-    const self = this;
+  _attach() {
     const c = this.canvas;
-
-    const toCanvasXY = (e) => {
-      const rect = c.getBoundingClientRect();
-      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    };
-
-    c.addEventListener('mousemove', (e) => {
-      const p = toCanvasXY(e);
-      self.mouse.x = p.x; self.mouse.y = p.y; self.mouse.inCanvas = true;
-      e.preventDefault();
-    });
-    c.addEventListener('mouseleave', () => { self.mouse.inCanvas = false; });
-
-    c.addEventListener('mousedown', (e) => {
-      const p = toCanvasXY(e);
-      self.mouse.x = p.x; self.mouse.y = p.y; self.mouse.inCanvas = true;
-      if (e.button === 0) { self.shootBuffer = true; self.shooting = true; }
-      else if (e.button === 2) { self.zoom = true; }
-      e.preventDefault();
-    });
-    c.addEventListener('mouseup', (e) => {
-      if (e.button === 0) self.shooting = false;
-      else if (e.button === 2) self.zoom = false;
-      e.preventDefault();
-    });
-    c.addEventListener('contextmenu', (e) => { e.preventDefault(); });
-
-    window.addEventListener('keydown', (e) => {
-      self.keys[e.code] = true;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') self.zoom = true;
-      e.preventDefault();
-    });
-    window.addEventListener('keyup', (e) => {
-      self.keys[e.code] = false;
-      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') self.zoom = false;
+    
+    c.addEventListener('click', () => {
+      if (!this.pointerLocked) {
+        c.requestPointerLock();
+      }
     });
 
-    this.attached = true;
-  };
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === c;
+      if (!this.pointerLocked && this._onPause) {
+        this._onPause();
+      }
+    });
 
-  Input.prototype.consumeShoot = function () {
+    document.addEventListener('mousemove', (e) => {
+      if (this.pointerLocked) {
+        this.mouse.x += e.movementX;
+        this.mouse.y += e.movementY;
+      }
+    });
+
+    document.addEventListener('mousedown', (e) => {
+      if (!this.pointerLocked) return;
+      if (e.button === 0) { this.shootBuffer = true; this.shooting = true; }
+      if (e.button === 2) { this.zoom = true; }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.shooting = false;
+      if (e.button === 2) this.zoom = false;
+    });
+
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    document.addEventListener('keydown', (e) => {
+      this.keys[e.code] = true;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.zoom = true;
+      if (e.code === 'Escape' && this.pointerLocked) {
+        document.exitPointerLock();
+      }
+      if (e.code === 'KeyP' && this._onPause) {
+        this._onPause();
+      }
+      if (e.code === 'Space') this.shootBuffer = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.zoom = false;
+    });
+  }
+
+  consumeShoot() {
     const v = this.shootBuffer;
     this.shootBuffer = false;
     return v;
-  };
+  }
 
-  S.Input = Input;
-})(typeof window !== 'undefined' ? window : this);
+  onShoot(cb) { this._onShoot = cb; }
+  onZoom(cb) { this._onZoom = cb; }
+  onPause(cb) { this._onPause = cb; }
+
+  lockPointer() {
+    if (!this.pointerLocked) {
+      this.canvas.requestPointerLock();
+    }
+  }
+
+  unlockPointer() {
+    if (this.pointerLocked) {
+      document.exitPointerLock();
+    }
+  }
+}

@@ -3,118 +3,150 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>狙击手掩护行动 · Sniper Cover Duty</title>
+  <title>3D狙击手掩护行动 · Sniper Cover Duty 3D</title>
   <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
   <style>
-    body { margin:0; font-family:'system-ui',-apple-system,'Segoe UI',Roboto,sans-serif; background:#101722; color:#e6e9ef; overflow:hidden; }
-    #app { width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column; }
-    #gameWrap { position:relative; width:min(100vw, 60vh*1.667); max-width:1000px; }
-    canvas { width:100%; height:auto; display:block; background:#0f1b2a; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.6); }
-    #hud { position:absolute; top:8px; left:12px; right:12px; display:flex; gap:10px; align-items:center; pointer-events:none; font-size:13px; text-shadow:0 1px 3px #000; flex-wrap:wrap; }
-    #hud span { background:rgba(0,0,0,.45); padding:3px 9px; border-radius:6px; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0a0e16; overflow:hidden; font-family:'system-ui',-apple-system,sans-serif; color:#e6e9ef; user-select:none; }
+    #gameCanvas { display:block; width:100vw; height:100vh; }
+
+    /* UI Overlay */
+    #ui-overlay { position:fixed; inset:0; pointer-events:none; z-index:10; }
+    #ui-overlay > * { pointer-events:auto; }
+
+    /* HUD */
+    #hud { position:fixed; top:12px; left:12px; right:12px; display:flex; gap:8px; align-items:center; font-size:13px; text-shadow:0 1px 4px #000; flex-wrap:wrap; z-index:20; }
+    #hud span { background:rgba(0,0,0,0.5); padding:4px 10px; border-radius:6px; backdrop-filter:blur(2px); }
     #hudBoss { color:#ff5e5e; font-weight:700; }
-    .screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(8,12,20,.84); border-radius:10px; text-align:center; z-index:5; }
+    #hudCombo { display:none; color:#ffb84d; font-weight:700; }
+    #hudProg { position:fixed; top:48px; left:12px; right:12px; height:5px; background:rgba(0,0,0,0.5); border-radius:3px; overflow:hidden; z-index:20; }
+    #hudProgFill { height:100%; width:0%; background:linear-gradient(90deg,#3fae4a,#7fd0ff); border-radius:3px; transition:width .2s; }
+
+    /* Scope Overlay */
+    #scope-overlay { position:fixed; inset:0; display:none; z-index:15; pointer-events:none; }
+    #scope-overlay.active { display:block; }
+    #scope-ring { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:70vmin; height:70vmin; border-radius:50%; border:3px solid rgba(0,0,0,0.85); box-shadow:0 0 0 9999px rgba(0,0,0,0.7), inset 0 0 60px rgba(0,0,0,0.5); }
+    #scope-crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
+    #scope-crosshair::before, #scope-crosshair::after { content:''; position:absolute; background:#ff3333; }
+    #scope-crosshair::before { width:24px; height:2px; top:-1px; left:-12px; }
+    #scope-crosshair::after { width:2px; height:24px; top:-12px; left:-1px; }
+    .scope-tick { position:absolute; color:#ff3333; font-size:11px; font-weight:700; text-shadow:0 0 4px #000; }
+    #scope-range { bottom:12%; left:50%; transform:translateX(-50%); }
+
+    /* Screens */
+    .screen { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(8,12,20,0.88); z-index:30; backdrop-filter:blur(4px); }
     .screen.show { display:flex; }
     h1 { font-size:32px; margin:0 0 6px; letter-spacing:2px; }
     h2 { font-weight:400; opacity:.7; font-size:16px; margin:0 0 22px; }
-    .btn { background:linear-gradient(180deg,#2f6fce,#1e4f9c); border:none; color:#fff; padding:12px 30px; font-size:16px; border-radius:8px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #123462; }
+    .btn { background:linear-gradient(180deg,#2f6fce,#1e4f9c); border:none; color:#fff; padding:12px 30px; font-size:16px; border-radius:8px; cursor:pointer; margin:6px; box-shadow:0 4px 0 #123462; transition:filter .15s; }
     .btn:hover { filter:brightness(1.12); }
     .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #123462; }
-    .btn.ghost { background:rgba(255,255,255,.12); box-shadow:none; border:1px solid rgba(255,255,255,.2); }
+    .btn.ghost { background:rgba(255,255,255,0.12); box-shadow:none; border:1px solid rgba(255,255,255,0.2); }
     #levelGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:min(92%,600px); margin:14px 0; }
-    .levelCard { background:#1a2436; border:2px solid #2c3a52; border-radius:8px; padding:12px 6px; cursor:pointer; transition:.15s; }
+    .levelCard { background:#1a2436; border:2px solid #2c3a52; border-radius:8px; padding:12px 6px; cursor:pointer; transition:.15s; text-align:center; }
     .levelCard:hover:not(.locked) { border-color:#4a9; transform:scale(1.04); }
     .levelCard.locked { opacity:.5; cursor:not-allowed; }
     .lvNum { font-size:22px; font-weight:700; color:#7fd0ff; }
     .lvName { font-size:13px; margin-top:2px; }
     .lvMeta { font-size:12px; color:#f0c15a; margin-top:3px; }
-    #objective { max-width:540px; font-size:15px; line-height:1.7; opacity:.95; padding:0 12px; }
-    .tip { font-size:12px; opacity:.6; margin-top:16px; padding:0 12px; }
-    /* 队友推进进度条 */
-    #hudProg { position:absolute; top:44px; left:12px; right:12px; height:6px; background:rgba(0,0,0,.45); border-radius:3px; overflow:hidden; pointer-events:none; }
-    #hudProgFill { height:100%; width:0%; background:linear-gradient(90deg,#3fae4a,#7fd0ff); border-radius:3px; transition:width .2s; }
-    /* 暂停提示 */
-    #pauseTip { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(8,12,20,.7); color:#ffd34d; font-size:26px; font-weight:700; letter-spacing:3px; z-index:8; pointer-events:none; border-radius:10px; }
-    /* 结算评分面板 */
-    #scorePanel { margin:14px 0 4px; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:14px 26px; min-width:280px; }
-    .scoreStars { font-size:30px; color:#f0c15a; letter-spacing:6px; text-shadow:0 2px 8px rgba(240,193,90,.5); }
+    #objective { max-width:540px; font-size:15px; line-height:1.7; opacity:.95; padding:0 12px; text-align:center; }
+    .tip { font-size:12px; opacity:.6; margin-top:16px; padding:0 12px; text-align:center; }
+    #scorePanel { margin:14px 0 4px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.14); border-radius:10px; padding:14px 26px; min-width:280px; }
+    .scoreStars { font-size:30px; color:#f0c15a; letter-spacing:6px; text-shadow:0 2px 8px rgba(240,193,90,0.5); }
     .scoreRow { font-size:14px; margin-top:6px; opacity:.92; }
     .scoreRow b { color:#7fd0ff; }
-    @media (max-width:600px) { #levelGrid{grid-template-columns:repeat(3,1fr);} h1{font-size:24px;} }
+    #pauseTip { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(8,12,20,0.7); color:#ffd34d; font-size:26px; font-weight:700; letter-spacing:3px; z-index:25; pointer-events:none; }
+    #controls-hint { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.5); padding:8px 16px; border-radius:8px; font-size:12px; opacity:0.7; z-index:20; backdrop-filter:blur(2px); pointer-events:none; }
+    @media (max-width:600px) { h1{font-size:24px;} #levelGrid{grid-template-columns:repeat(3,1fr);} }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="gameWrap">
-      <canvas id="gameCanvas" width="1000" height="600"></canvas>
-      <div id="hud">
-        <span id="hudLevel">关卡 -</span>
-        <span id="hudName">-</span>
-        <span id="hudEnemy">敌方 -</span>
-        <span id="hudAllyHp">队友 -</span>
-        <span id="hudAmmo">弹药 -</span>
-        <span id="hudStat" style="color:#9fd3ff">击杀 -</span>
-        <span id="hudCombo" style="display:none;color:#ffb84d;font-weight:700"></span>
-        <span id="hudBoss" style="display:none"></span>
-      </div>
-      <!-- 队友推进进度条 -->
-      <div id="hudProg"><div id="hudProgFill"></div></div>
-      <!-- 暂停提示 -->
-      <div id="pauseTip" style="display:none">⏸ 已暂停 · 按 P 继续</div>
+  <!-- Three.js Canvas -->
+  <canvas id="gameCanvas"></canvas>
 
-      <div class="screen show" id="screen-menu">
-        <h1>🔭 狙击手掩护行动</h1>
-        <h2>Sniper Cover Duty</h2>
-        <div id="objective">你是隐藏在制高点的狙击手，任务掩护小队穿越敌占区完成使命。<br>瞄准镜内的一切威胁，都交给你来清除。</div>
-        <div style="margin-top:22px"><button class="btn" id="btnStart">开始任务</button></div>
-        <div class="tip">移动鼠标瞄准 · 左键射击 · 右键或Shift开镜放大弱点<br>通关后解锁下一关，难度循序渐进</div>
-      </div>
+  <!-- HUD -->
+  <div id="hud">
+    <span id="hudLevel">关卡 -</span>
+    <span id="hudName">-</span>
+    <span id="hudEnemy">敌方 -</span>
+    <span id="hudAllyHp">队友 -</span>
+    <span id="hudAmmo">弹药 -</span>
+    <span id="hudStat">击杀 -</span>
+    <span id="hudCombo"></span>
+    <span id="hudBoss" style="display:none"></span>
+  </div>
+  <div id="hudProg"><div id="hudProgFill"></div></div>
+  <div id="controls-hint">🖱 鼠标瞄准 · 左键射击 · 右键开镜 · ESC暂停</div>
 
-      <div class="screen" id="screen-select">
-        <h2 style="margin-bottom:6px">选择任务</h2>
-        <div id="levelGrid"></div>
-        <div style="margin-top:10px"><button class="btn ghost" id="btnSelectHome">← 返回</button></div>
-      </div>
-
-      <div class="screen" id="screen-playing" style="pointer-events:none;background:transparent;z-index:0"></div>
-
-      <div class="screen" id="screen-win">
-        <h1 style="color:#4bd27a">✅ 任务完成！</h1>
-        <div id="objective">漂亮的掩护！队友成功穿越了封锁线。</div>
-        <div id="scorePanel"></div>
-        <div style="margin-top:22px">
-          <button class="btn" id="btnNext">下一关 ▶</button>
-          <button class="btn ghost" id="btnRetryWin" onclick="document.getElementById('btnRetry').click()">重玩</button>
-        </div>
-      </div>
-
-      <div class="screen" id="screen-dead">
-        <h1 style="color:#e74c3c">💔 任务失败</h1>
-        <div id="objective">队友倒下了…… 调整战术，重新来过。</div>
-        <div style="margin-top:22px">
-          <button class="btn" id="btnRetry">重新任务</button>
-          <button class="btn ghost" id="btnSelectHome2" onclick="document.getElementById('btnSelectHome').click()">返回选关</button>
-        </div>
-      </div>
-
-      <div class="screen" id="screen-winAll">
-        <h1 style="color:#f0c15a">🏆 全面胜利！</h1>
-        <div id="objective">恭喜！你已完成全部任务。你是最可靠的狙击手！</div>
-        <div style="margin-top:22px">
-          <button class="btn ghost" id="btnWinAllReplay" onclick="document.getElementById('btnStart').click()">再战一局</button>
-        </div>
-      </div>
+  <!-- Scope Overlay -->
+  <div id="scope-overlay">
+    <div id="scope-ring">
+      <div id="scope-crosshair"></div>
+      <div class="scope-tick" style="top:8%;left:50%;transform:translateX(-50%)">▲</div>
+      <div class="scope-tick" style="bottom:8%;left:50%;transform:translateX(-50%)">▼</div>
+      <div class="scope-tick" style="top:50%;left:3%;transform:translateY(-50%)">◀</div>
+      <div class="scope-tick" style="top:50%;right:3%;transform:translateY(-50%)">▶</div>
+      <div class="scope-tick" id="scope-range">800m</div>
     </div>
   </div>
 
-  <script src="js/sprites.js"></script>
-  <script src="js/levels.js"></script>
-  <script src="js/input.js"></script>
+  <!-- Pause Tip -->
+  <div id="pauseTip">⏸ 已暂停 · 按 ESC 继续</div>
+
+  <!-- Screens -->
+  <div class="screen show" id="screen-menu">
+    <h1>🔭 3D 狙击手掩护行动</h1>
+    <h2>Sniper Cover Duty · 3D</h2>
+    <div id="objective">你是隐藏在制高点的狙击手，从3D瞄准镜中观察战场，<br>狙杀纵深距离上的敌人，掩护小队穿越战区。</div>
+    <div style="margin-top:22px"><button class="btn" id="btnStart">开始任务</button></div>
+    <div class="tip">🖱 鼠标环顾战场 · 左键射击 · 右键开镜放大<br>🎯 瞄准不同距离的敌人，注意弹道下坠</div>
+  </div>
+
+  <div class="screen" id="screen-select">
+    <h2 style="margin-bottom:6px">选择任务</h2>
+    <div id="levelGrid"></div>
+    <div style="margin-top:10px"><button class="btn ghost" id="btnSelectHome">← 返回</button></div>
+  </div>
+
+  <div class="screen" id="screen-win">
+    <h1 style="color:#4bd27a">✅ 任务完成！</h1>
+    <div id="objective">漂亮的掩护！队友成功穿越了封锁线。</div>
+    <div id="scorePanel"></div>
+    <div style="margin-top:22px">
+      <button class="btn" id="btnNext">下一关 ▶</button>
+      <button class="btn ghost" id="btnRetryWin">重玩</button>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-dead">
+    <h1 style="color:#e74c3c">💔 任务失败</h1>
+    <div id="objective">队友倒下了…… 调整战术，重新来过。</div>
+    <div style="margin-top:22px">
+      <button class="btn" id="btnRetry">重新任务</button>
+      <button class="btn ghost" id="btnSelectHome2">返回选关</button>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-winAll">
+    <h1 style="color:#f0c15a">🏆 全面胜利！</h1>
+    <div id="objective">恭喜！你已完成全部3D任务！你是最可靠的狙击手！</div>
+    <div style="margin-top:22px">
+      <button class="btn ghost" id="btnWinAllReplay">再战一局</button>
+    </div>
+  </div>
+
+  <!-- 旧有模块（音效等） -->
   <script src="js/audio.js"></script>
-  <script src="js/particles.js"></script>
-  <script src="js/allies.js"></script>
-  <script src="js/enemies.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/main.js"></script>
+
+  <!-- Three.js Modules -->
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
