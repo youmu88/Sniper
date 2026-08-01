@@ -182,6 +182,9 @@ function update(dt) {
   fpsCam.setZoom(input.zoom);
   fpsCam.update(dt);
 
+  // 红外热成像联动：开镜才让敌人以红外高亮显现
+  enemies.forEach(e => e.setThermal(input.zoom));
+
   // 瞄准镜UI
   const scopeEl = document.getElementById('scope-overlay');
   if (input.zoom) {

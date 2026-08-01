@@ -10,8 +10,8 @@ const GROUND_Y = 0;
 // 兵种配置
 const ENEMY_CFG = {
   stationary: { hp: 1, speed: 0, fireRate: 0.8, scale: 0.9 },
-  patrol: { hp: 1, speed: 18, fireRate: 0.6, scale: 0.9 },
-  charger: { hp: 3, speed: 55, fireRate: 0, scale: 0.9 },
+  patrol: { hp: 1, speed: 11, fireRate: 0.6, scale: 0.9 },
+  charger: { hp: 3, speed: 32, fireRate: 0, scale: 0.9 },
   crouch: { hp: 2, speed: 0, fireRate: 0.6, scale: 0.9 },
   sniper: { hp: 4, speed: 0, fireRate: 1.0, scale: 0.9 },
   heavy: { hp: 6, speed: 0, fireRate: 1.0, scale: 1.0 },
@@ -66,6 +66,10 @@ export class Enemy3D {
     this.mesh.userData.isEnemy = true;
     this.mesh.userData.enemyRef = this;
 
+    // 红外热成像状态（夜战核心机制）
+    this._thermal = false;
+    this._matRefs = this._collectMaterials();
+
     // 面向队友（默认朝+ x方向）
     this.mesh.rotation.y = 0;
 
@@ -77,6 +81,51 @@ export class Enemy3D {
     this.hurtFlash = 0;
     // 行走动画计时
     this.walkT = 0;
+  }
+
+  /** 收集所有可发光的材质引用（供红外热成像切换） */
+  _collectMaterials() {
+    const refs = [];
+    this.mesh.traverse(c => {
+      if (c.isMesh && c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach(m => {
+          if (m && 'emissive' in m) {
+            const isCore = c.userData.isCore;
+            const isEye = c.userData.isEye;
+            refs.push({ mat: m, isCore, isEye });
+            this._applyThermal(m, isCore, isEye, false); // 初始应用关镜暗态
+          }
+        });
+      }
+    });
+    return refs;
+  }
+
+  /** 应用红外热成像发光态：active=true 开镜白热，false 关镜暗红 */
+  _applyThermal(mat, isCore, isEye, active) {
+    if (this.kind === 'boss' && (isCore || isEye)) {
+      // Boss 核心/眼睛自身发光，热成像下进一步拉亮
+      mat.emissive = new THREE.Color(active ? 0xffaa44 : 0xff4400);
+      mat.emissiveIntensity = active ? 2.4 : (mat.emissiveIntensity || 0.6);
+      return;
+    }
+    if (active) {
+      mat.emissive = new THREE.Color(0xff5324); // 白热橙红热源
+      mat.emissiveIntensity = 1.7;
+    } else {
+      mat.emissive = new THREE.Color(0x8a1a0a); // 夜色暗红轮廓（不开镜难辨方向）
+      mat.emissiveIntensity = 0.35;
+    }
+  }
+
+  /** 切换红外热成像（main.js 随开镜状态调用） */
+  setThermal(active) {
+    if (this._thermal === active) return;
+    this._thermal = active;
+    if (this._matRefs) {
+      this._matRefs.forEach(r => this._applyThermal(r.mat, r.isCore, r.isEye, active));
+    }
   }
 
   _createHPBar() {
@@ -141,7 +190,7 @@ export class Enemy3D {
     if (!parts || !parts.lLeg) return;
     if (moving) {
       this.walkT += dt;
-      const swing = Math.sin(this.walkT * 12) * 0.15;
+      const swing = Math.sin(this.walkT * 10) * 0.15;
       parts.lLeg.position.x = -0.15 + swing * 0.3;
       parts.rLeg.position.x = 0.15 - swing * 0.3;
       parts.lArm.position.x = -0.39 - swing * 0.15;
@@ -205,7 +254,7 @@ export class Enemy3D {
     if (this.bossPhase === 0 && this.phaseAt > 0 && this.hp <= this.phaseAt) {
       this.bossPhase = 1;
       this.fireRate *= 1.5;
-      this.speed = 8;
+      this.speed = 5;
       this.dir = -1;
       this.minX = -4; this.maxX = 4;
       this.barrageTimer = 4;
@@ -238,9 +287,8 @@ export class Enemy3D {
     });
     setTimeout(() => {
       if (this.alive) {
-        this.mesh.traverse(child => {
-          if (child.isMesh) child.material.emissive = new THREE.Color(0x000000);
-        });
+        // 恢复时回到当前红外热成像态，避免开镜下敌人"熄灭"
+        this.setThermal(this._thermal || false);
       }
     }, 80);
     return true;

@@ -3,7 +3,7 @@
  * ============================================================ */
 import * as THREE from 'three';
 
-const DEFAULT_FOV = 50;
+const DEFAULT_FOV = 64;   // 镜头拉远：更大视野，战场纵深尽收眼底
 const SCOPE_FOV = 8;
 const SENSITIVITY = 0.002;
 const PITCH_LIMIT = Math.PI * 0.45;
@@ -20,8 +20,8 @@ export class CameraControls {
     this.breathTime = 0;
     this._smoothFov = DEFAULT_FOV;
 
-    // 固定狙击位
-    this._pos = new THREE.Vector3(0, 3.8, 15);
+    // 固定狙击位（略后撤抬高，视野更舒展）
+    this._pos = new THREE.Vector3(0, 4.2, 16);
     this.camera.position.copy(this._pos);
   }
 
