@@ -423,12 +423,14 @@ function bindUI() {
   document.getElementById('btnRetry').addEventListener('click', () => {
     playSound('ui');
     STATE.screen = 'playing';
+    hud.showScreen('playing');
     loadLevel(STATE.levelId);
     canvas.requestPointerLock();
   });
   document.getElementById('btnRetryWin').addEventListener('click', () => {
     playSound('ui');
     STATE.screen = 'playing';
+    hud.showScreen('playing');
     loadLevel(STATE.levelId);
     canvas.requestPointerLock();
   });
@@ -436,6 +438,7 @@ function bindUI() {
     playSound('ui');
     if (STATE.levelId < LEVELS.length) {
       STATE.screen = 'playing';
+      hud.showScreen('playing');
       loadLevel(STATE.levelId + 1);
       canvas.requestPointerLock();
     } else {
@@ -459,6 +462,7 @@ function bindUI() {
     if (id) {
       playSound('ui');
       STATE.screen = 'playing';
+      hud.showScreen('playing');
       loadLevel(id);
       canvas.requestPointerLock();
     }
