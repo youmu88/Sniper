@@ -46,6 +46,7 @@ let allyWaiting = false;
 let enemyBullets = [];
 let levelDef = null;
 let lastTime = 0;
+let windPhase = 0; // 瞄准镜风速模拟相位
 
 // 收集所有可射击目标
 function getTargets() {
@@ -198,6 +199,20 @@ function update(dt) {
       if (e.alive && e.spawned && dist > 0 && dist < nearest) nearest = dist;
     });
     scopeRange.textContent = nearest < Infinity ? `▲ ${nearest}m` : '——';
+
+    // 风速模拟：缓慢随机游走（向《狙击精英》mil-dot 靠拢）
+    windPhase += dt * 0.22;
+    const windSpeed = Math.max(0.3, 1.6 + Math.sin(windPhase) * 1.1 + Math.sin(windPhase * 0.37) * 0.7);
+    const windDir = windPhase % (Math.PI * 2) < Math.PI ? '→' : '←';
+    const scopeWind = document.getElementById('scope-wind');
+    if (scopeWind) scopeWind.textContent = `WIND ${windDir} ${windSpeed.toFixed(1)}`;
+
+    // 弹道补偿：距离越远补偿越大（模拟弹道下坠修正量）
+    const scopeComp = document.getElementById('scope-comp');
+    if (scopeComp) {
+      const comp = nearest < Infinity ? Math.max(0, (nearest - 12) * 0.055) : 0;
+      scopeComp.textContent = `COMP +${comp.toFixed(1)} MIL`;
+    }
   }
 
   // 瞄准镜UI

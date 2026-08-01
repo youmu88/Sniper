@@ -66,6 +66,10 @@
     /* 红外模式标签（圈内顶部，避免 overflow:hidden 裁剪；开镜渐入） */
     .scope-mode { top:2.8%; left:50%; transform:translateX(-50%); font-size:12px; color:#ff6a3a; letter-spacing:2px; text-shadow:0 0 6px rgba(255,60,20,0.8); background:rgba(40,8,4,0.6); padding:2px 12px; border-radius:4px; border:1px solid rgba(255,80,40,0.4); white-space:nowrap; opacity:0; animation:thermal-boot .5s ease-out .15s forwards; }
     @keyframes thermal-boot { 0%{ opacity:0; transform:translateX(-50%) scale(0.85); filter:brightness(2); } 60%{ opacity:1; } 100%{ opacity:1; transform:translateX(-50%) scale(1); filter:brightness(1); } }
+    /* 风速 / 弹道补偿读数（镜内角落，等宽等距） */
+    .scope-readout { position:absolute; font-size:12px; font-weight:600; color:#ffb080; letter-spacing:1px; text-shadow:0 0 4px #000; background:rgba(20,5,2,0.5); padding:2px 8px; border-radius:3px; white-space:nowrap; opacity:0; animation:thermal-boot .5s ease-out .3s forwards; }
+    #scope-wind { top:9%; left:3%; }
+    #scope-comp { top:9%; right:3%; }
 
     /* Hitmarker 命中标记（白 X 命中 / 红 X 击杀） */
     #hitmarker { position:fixed; top:50%; left:50%; width:26px; height:26px; transform:translate(-50%,-50%); opacity:0; pointer-events:none; z-index:16; }
@@ -148,6 +152,9 @@
       <!-- 距离/红外状态 -->
       <div class="scope-tick" id="scope-range">800m</div>
       <div class="scope-tick scope-mode" id="scope-mode">🔴 THERMAL</div>
+      <!-- 风速 / 弹道补偿专业读数 -->
+      <div class="scope-readout" id="scope-wind">WIND → 0.0</div>
+      <div class="scope-readout" id="scope-comp">COMP +0.0 MIL</div>
     </div>
   </div>
 
