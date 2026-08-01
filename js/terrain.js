@@ -164,3 +164,291 @@ export function createSniperNest() {
   }
   return group;
 }
+
+/* ============================================================
+ * createProps — 战场布景系统（按地形主题差异化，提升场景丰富度）
+ * 布景置于战场两侧与纵深，避开道路与敌群刷新区
+ * ============================================================ */
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/** 板条木箱（Canvas 纹理） */
+function _createCrate(w, h, d, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = color || '#8a6a3a';
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.strokeStyle = 'rgba(40,25,8,0.85)';
+  ctx.lineWidth = 4;
+  // 板条边框
+  ctx.strokeRect(3, 3, 58, 58);
+  ctx.beginPath();
+  ctx.moveTo(32, 3); ctx.lineTo(32, 61);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(3, 32); ctx.lineTo(61, 32);
+  ctx.stroke();
+  // 对角斜撑
+  ctx.beginPath();
+  ctx.moveTo(6, 58); ctx.lineTo(58, 6);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/** 沙袋堆（交错box） */
+function _createSandbagGroup(cx, cz) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.95 });
+  const rows = 3;
+  for (let r = 0; r < rows; r++) {
+    const n = 3 - r;
+    for (let i = 0; i < n; i++) {
+      const bag = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.28, 0.34), mat);
+      bag.position.set(cx + (i - (n - 1) / 2) * 0.55, 0.14 + r * 0.26, cz + (r % 2) * 0.12);
+      bag.rotation.y = (Math.random() - 0.5) * 0.4;
+      bag.castShadow = true;
+      group.add(bag);
+    }
+  }
+  return group;
+}
+
+/** 铁丝网 */
+function _createBarbedWire(cx, cz, len = 5) {
+  const group = new THREE.Group();
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4a3a, roughness: 0.8 });
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.5, metalness: 0.6 });
+  const posts = 4;
+  for (let i = 0; i < posts; i++) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.1, 0.08), postMat);
+    post.position.set(cx + (i / (posts - 1) - 0.5) * len, 0.55, cz);
+    group.add(post);
+  }
+  for (let h = 0; h < 3; h++) {
+    const y = 0.3 + h * 0.3;
+    const wire = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 0.02), wireMat);
+    wire.position.set(cx, y, cz);
+    group.add(wire);
+  }
+  return group;
+}
+
+/** 树（草原） */
+function _createTree(cx, cz) {
+  const group = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 0.9 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x3a6a35, roughness: 0.8 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 1.6, 6), trunkMat);
+  trunk.position.y = 0.8;
+  trunk.castShadow = true;
+  group.add(trunk);
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.85, 7, 6), leafMat);
+  crown.position.y = 2.1;
+  crown.castShadow = true;
+  group.add(crown);
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 松树（雪原） */
+function _createPine(cx, cz) {
+  const group = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.9 });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2a5a3a, roughness: 0.85 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.2, 6), trunkMat);
+  trunk.position.y = 0.6;
+  group.add(trunk);
+  for (let i = 0; i < 3; i++) {
+    const r = 0.9 - i * 0.24;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, 1.0, 7), leafMat);
+    cone.position.y = 1.2 + i * 0.72;
+    cone.castShadow = true;
+    group.add(cone);
+  }
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 岩石 */
+function _createRock(cx, cz, s = 1) {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.95, flatShading: true });
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), mat);
+  rock.position.set(cx, s * 0.4, cz);
+  rock.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+  rock.scale.y = rand(0.6, 0.9);
+  rock.castShadow = true;
+  return rock;
+}
+
+/** 仙人掌（沙漠） */
+function _createCactus(cx, cz) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x4a7a3a, roughness: 0.9 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 1.8, 6), mat);
+  trunk.position.y = 0.9;
+  group.add(trunk);
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.7, 5), mat);
+    arm.position.set(side * 0.24, 1.2, 0);
+    arm.rotation.z = side * 0.9;
+    group.add(arm);
+  }
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 路灯（城镇/城镇夜，夜晚发光） */
+function _createStreetLamp(cx, cz, lit) {
+  const group = new THREE.Group();
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x3a3a4a, roughness: 0.7, metalness: 0.5 });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 4.2, 6), poleMat);
+  pole.position.y = 2.1;
+  group.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.06), poleMat);
+  arm.position.set(0.35, 4.0, 0);
+  group.add(arm);
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: lit ? 0xfff3c0 : 0x6a6a6a,
+    emissive: lit ? 0xffd080 : 0x000000,
+    emissiveIntensity: lit ? 1.4 : 0,
+  });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), lampMat);
+  lamp.position.set(0.7, 3.95, 0);
+  group.add(lamp);
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 断墙（废墟/城镇） */
+function _createBrokenWall(cx, cz) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.95, flatShading: true });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 0.35), mat);
+  base.position.y = 0.7;
+  base.castShadow = true;
+  group.add(base);
+  // 参差破损砖块
+  for (let i = 0; i < 4; i++) {
+    const chunk = new THREE.Mesh(new THREE.BoxGeometry(rand(0.3, 0.6), rand(0.2, 0.4), 0.3), mat);
+    chunk.position.set(rand(-0.9, 0.9), 1.5 + rand(0, 0.35), 0);
+    chunk.rotation.z = rand(-0.3, 0.3);
+    group.add(chunk);
+  }
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 瓦砾堆（废墟） */
+function _createRubble(cx, cz) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6a5a4a, roughness: 0.95, flatShading: true });
+  for (let i = 0; i < 6; i++) {
+    const piece = new THREE.Mesh(new THREE.BoxGeometry(rand(0.2, 0.5), rand(0.15, 0.35), rand(0.2, 0.5)), mat);
+    piece.position.set(rand(-0.7, 0.7), rand(0.08, 0.3), rand(-0.4, 0.4));
+    piece.rotation.set(rand(-0.5, 0.5), rand(-0.5, 0.5), rand(-0.5, 0.5));
+    group.add(piece);
+  }
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 烧毁车辆残骸（废墟） */
+function _createBurntVehicle(cx, cz) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.9, metalness: 0.2 });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.6, 1.0), bodyMat);
+  body.position.y = 0.5;
+  body.castShadow = true;
+  group.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.9), bodyMat);
+  cabin.position.set(-0.15, 1.05, 0);
+  group.add(cabin);
+  for (const side of [-1, 1]) {
+    for (const end of [-1, 1]) {
+      const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.16, 8), tireMat);
+      tire.rotation.z = Math.PI / 2;
+      tire.position.set(end * 0.72, 0.26, side * 0.52);
+      group.add(tire);
+    }
+  }
+  group.position.set(cx, 0, cz);
+  group.rotation.y = rand(-0.6, 0.6);
+  return group;
+}
+
+/** 金属立柱 + 警示灯（机甲基地） */
+function _createMetalPillar(cx, cz, lit) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5a5f6a, roughness: 0.4, metalness: 0.7 });
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 5.2, 7), mat);
+  pillar.position.y = 2.6;
+  pillar.castShadow = true;
+  group.add(pillar);
+  const lightMat = new THREE.MeshStandardMaterial({
+    color: lit ? 0xff5040 : 0x3a3a3a,
+    emissive: lit ? 0xff3020 : 0x000000,
+    emissiveIntensity: lit ? 1.6 : 0,
+  });
+  const light = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), lightMat);
+  light.position.y = 5.3;
+  group.add(light);
+  group.position.set(cx, 0, cz);
+  return group;
+}
+
+/** 按地形生成差异化布景 */
+export function createProps(levelDef) {
+  const group = new THREE.Group();
+  const terrain = levelDef.terrain || '草原';
+  const isNight = terrain === '城镇夜' || terrain === '机甲基地';
+
+  // 公共：沙袋堆 + 铁丝网（随机分布于两侧）
+  const sideSpots = [
+    { x: -16, z: -24 }, { x: 16, z: -24 }, { x: -20, z: -32 }, { x: 20, z: -32 },
+  ];
+  const sandbags = pick(sideSpots);
+  const wire = pick(sideSpots.filter(s => s !== sandbags));
+  group.add(_createSandbagGroup(sandbags.x, sandbags.z));
+  group.add(_createBarbedWire(wire.x, wire.z));
+
+  // 地形主题元素
+  const props = [];
+  if (terrain === '草原') {
+    for (let i = 0; i < 5; i++) props.push(_createTree(rand(-28, -12), rand(-40, -20)));
+    for (let i = 0; i < 5; i++) props.push(_createTree(rand(12, 28), rand(-40, -20)));
+    for (let i = 0; i < 5; i++) props.push(_createRock(rand(-28, 28), rand(-44, -34), rand(0.4, 0.8)));
+    for (let i = 0; i < 3; i++) props.push(_createCrate(rand(0.7, 0.9), rand(0.7, 0.9), rand(0.7, 0.9)));
+  } else if (terrain === '城镇' || terrain === '城镇夜') {
+    const lampCount = isNight ? 5 : 3;
+    for (let i = 0; i < lampCount; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      props.push(_createStreetLamp(side * rand(9, 14), rand(-16, -13), isNight));
+    }
+    for (let i = 0; i < 4; i++) props.push(_createBrokenWall(rand(-28, 28), rand(-40, -26)));
+    for (let i = 0; i < 4; i++) props.push(_createCrate(rand(0.7, 0.9), rand(0.7, 0.9), rand(0.7, 0.9)));
+  } else if (terrain === '沙漠') {
+    for (let i = 0; i < 6; i++) props.push(_createCactus(rand(-28, 28), rand(-40, -22)));
+    for (let i = 0; i < 7; i++) props.push(_createRock(rand(-30, 30), rand(-46, -30), rand(0.5, 1.1)));
+  } else if (terrain === '废墟') {
+    for (let i = 0; i < 4; i++) props.push(_createBrokenWall(rand(-28, 28), rand(-40, -24)));
+    for (let i = 0; i < 5; i++) props.push(_createRubble(rand(-27, 27), rand(-36, -22)));
+    for (let i = 0; i < 2; i++) props.push(_createBurntVehicle(rand(-20, 20), rand(-34, -26)));
+  } else if (terrain === '雪原') {
+    for (let i = 0; i < 7; i++) props.push(_createPine(rand(-28, -10), rand(-42, -20)));
+    for (let i = 0; i < 7; i++) props.push(_createPine(rand(10, 28), rand(-42, -20)));
+    for (let i = 0; i < 4; i++) props.push(_createRock(rand(-28, 28), rand(-44, -34), rand(0.4, 0.7)));
+  } else if (terrain === '机甲基地') {
+    for (let i = 0; i < 5; i++) props.push(_createMetalPillar(rand(-28, 28), rand(-42, -24), i % 2 === 0));
+    for (let i = 0; i < 4; i++) props.push(_createCrate(rand(0.8, 1.0), rand(0.8, 1.0), rand(0.8, 1.0), '#4a5560'));
+  }
+
+  props.forEach(p => group.add(p));
+  return group;
+}

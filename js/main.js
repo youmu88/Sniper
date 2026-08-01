@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { createScene } from './scene-setup.js';
 import { CameraControls } from './camera-controls.js';
 import { InputManager } from './input.js';
-import { createTerrain, createBuildings, createSniperNest } from './terrain.js';
+import { createTerrain, createBuildings, createSniperNest, createProps } from './terrain.js';
 import { createCharacter, createBossCharacter, createDeadBody } from './characters.js';
 import { Ally3D } from './allies.js';
 import { Enemy3D } from './enemies.js';
@@ -40,7 +40,7 @@ const weapon = new Weapon(scene, camera);
 const particles = new ParticleSystem(scene);
 const hud = new HUD();
 
-let terrain, buildings, sniperNest;
+let terrain, buildings, sniperNest, props;
 let ally, enemies = [];
 let allyWaiting = false;
 let enemyBullets = [];
@@ -80,6 +80,10 @@ function loadLevel(id) {
   // 狙击位
   sniperNest = createSniperNest();
   scene.add(sniperNest);
+
+  // 战场布景（按地形差异化）
+  props = createProps(def);
+  scene.add(props);
 
   // 重置相机与武器
   fpsCam.reset();
@@ -137,6 +141,7 @@ function clearLevel() {
   if (terrain) { scene.remove(terrain); disposeGroup(terrain); }
   if (buildings) { scene.remove(buildings); disposeGroup(buildings); }
   if (sniperNest) { scene.remove(sniperNest); disposeGroup(sniperNest); }
+  if (props) { scene.remove(props); disposeGroup(props); }
   if (ally) { ally.dispose(scene); ally = null; }
   enemies.forEach(e => e.dispose(scene));
   enemies = [];
@@ -182,8 +187,18 @@ function update(dt) {
   fpsCam.setZoom(input.zoom);
   fpsCam.update(dt);
 
-  // 红外热成像联动：开镜才让敌人以红外高亮显现
+  // 红外热成像联动：开镜才让敌人以红外高亮显现 + 热点距离标签
   enemies.forEach(e => e.setThermal(input.zoom));
+  const scopeRange = document.getElementById('scope-range');
+  if (scopeRange) {
+    let nearest = Infinity;
+    enemies.forEach(e => {
+      const dist = e.alive && e.spawned ? Math.round(camera.position.distanceTo(e.mesh.position)) : 0;
+      e.setDistLabel(input.zoom, dist);
+      if (e.alive && e.spawned && dist > 0 && dist < nearest) nearest = dist;
+    });
+    scopeRange.textContent = nearest < Infinity ? `▲ ${nearest}m` : '——';
+  }
 
   // 瞄准镜UI
   const scopeEl = document.getElementById('scope-overlay');
@@ -230,7 +245,13 @@ function update(dt) {
             enemyRef.takeDamage(dmg);
           }
 
-                      if (!enemyRef.alive) {
+          // 敌人狂暴提示（首次激怒时 HUD 提示）
+          if (enemyRef.enraged && !enemyRef._enrageNotified) {
+            enemyRef._enrageNotified = true;
+            hud.showEnrageNotice();
+          }
+
+          if (!enemyRef.alive) {
             STATE.stats.kills++;
             STATE.combo++;
             STATE.comboTimer = 2;
@@ -238,8 +259,10 @@ function update(dt) {
             particles.burstExplosion(result.point, enemyRef.kind === 'boss');
             if (enemyRef.kind !== 'boss') particles.bloodMist(result.point);
             playSound('kill');
+            hud.showHitmarker(true); // 击杀红 X
           } else {
             playSound('hit');
+            hud.showHitmarker(false); // 命中白 X
           }
         } else {
           playSound('miss');
@@ -275,6 +298,7 @@ function update(dt) {
     }
     if (res?.melee && ally && ally.alive) {
       ally.takeDamage(25); // 冲锋兵贴身自爆
+      hud.showDamageFlash();
       playSound('hit');
     }
   });
@@ -356,6 +380,7 @@ function updateEnemyBullets(dt) {
       const dz = b.mesh.position.z - ally.z;
       if (Math.sqrt(dx * dx + dz * dz) < 0.6) {
         ally.takeDamage(8);
+        hud.showDamageFlash();
         b.life = 0;
         particles.sparkHit(b.mesh.position.clone(), new THREE.Vector3(0, 1, 0));
       }

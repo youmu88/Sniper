@@ -40,8 +40,8 @@ const geoGun = new THREE.BoxGeometry(GUN.w, GUN.h, GUN.d);
 // 死亡几何体（横躺）
 const geoDead = new THREE.BoxGeometry(0.9, 0.3, 0.4);
 
-/** 创建低多边形人物 Group */
-export function createCharacter(colorKey, scale = 1) {
+/** 创建低多边形人物 Group（variant: ''|sniper|heavy|charger|crouch 兵种外观变体） */
+export function createCharacter(colorKey, scale = 1, variant = '') {
   const pal = PALETTE[colorKey] || PALETTE.enemy;
   const group = new THREE.Group();
   group.userData.colorKey = colorKey;
@@ -107,6 +107,46 @@ export function createCharacter(colorKey, scale = 1) {
   // 保存引用用于动画
   group.userData.parts = { lLeg, rLeg, lArm, rArm, body, gun };
   group.userData.scale = scale;
+
+  // ============ 兵种外观变体 ============
+  if (variant === 'sniper') {
+    // 深色兜帽 + 披风（狙击手剪影）
+    const hoodMat = new THREE.MeshStandardMaterial({ color: 0x2a3440, roughness: 0.7 });
+    const hood = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R + 0.07, 6, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), hoodMat);
+    hood.position.set(0, 1.66, 0);
+    group.add(hood);
+    const cloak = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.9, 0.15), hoodMat);
+    cloak.position.set(0, 0.85, -0.22);
+    cloak.rotation.x = -0.15;
+    group.add(cloak);
+  } else if (variant === 'heavy') {
+    // 重甲肩垫 + 更宽头盔
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x5a3a35, roughness: 0.4, metalness: 0.4 });
+    for (const s of [-1, 1]) {
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.22, 0.3), padMat);
+      pad.position.set(s * (BODY.w / 2 + 0.14), 1.5, 0);
+      group.add(pad);
+    }
+    const helmet2 = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R + 0.05, 6, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), matHelmet);
+    helmet2.position.set(0, 1.68, 0);
+    group.add(helmet2);
+  } else if (variant === 'charger') {
+    // 红色头带 + 前臂短刀
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 });
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.42), bandMat);
+    band.position.set(0, 1.7, 0);
+    group.add(band);
+    const knifeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.2, metalness: 0.9 });
+    const knife = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.28), knifeMat);
+    knife.position.set(BODY.w / 2 + 0.08, 1.0, 0.22);
+    knife.rotation.x = Math.PI / 4;
+    group.add(knife);
+  } else if (variant === 'crouch') {
+    // 蹲姿：整体压低
+    group.scale.set(scale, scale * 0.72, scale);
+    group.userData.crouched = true;
+    return group;
+  }
 
   group.scale.set(scale, scale, scale);
   return group;

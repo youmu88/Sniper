@@ -18,13 +18,22 @@ const ENEMY_CFG = {
   boss: { hp: 40, speed: 0, fireRate: 1.3, scale: 1.2 },
 };
 
+// 速度调谐：巡逻更慢，冲锋兵略收敛（levels 显式 speed 也按此系数缩放）
+const SPEED_TUNE = { patrol: 0.75, charger: 0.8 };
+// 激怒机制参数
+const ENRAGE = {
+  moveMult: 1.7,   // 移动速度倍率
+  fireMult: 1.4,   // 射速倍率
+};
+
 export class Enemy3D {
   constructor(cfg) {
     this.kind = cfg.kind || 'stationary';
     const def = ENEMY_CFG[this.kind] || ENEMY_CFG.stationary;
     this.hp = cfg.hp != null ? cfg.hp : def.hp;
     this.maxHp = this.hp;
-    this.speed = cfg.speed != null ? cfg.speed : def.speed;
+    const rawSpeed = cfg.speed != null ? cfg.speed : def.speed;
+    this.speed = rawSpeed * (SPEED_TUNE[this.kind] || 1);
     this.fireRate = cfg.fireRate != null ? cfg.fireRate : def.fireRate;
     this.x = cfg.x || 0;
     this.z = cfg.z || -15;
@@ -34,6 +43,9 @@ export class Enemy3D {
     this.delay = cfg.delay || 0;
     this.dir = 1;
     this.visible = true;
+    // 激怒状态：受击未死 → 加速反扑/射速提升
+    this.enraged = false;
+    this._enrageHintTimer = 0;
 
     // 巡逻范围（levels 用 range 简写：x ± range；显式 minX/maxX 优先）
     const range = cfg.range != null ? cfg.range : 4;
@@ -59,9 +71,10 @@ export class Enemy3D {
     this.coreTimer = 0;
     this.barrageTimer = 4;
 
-    // 创建3D模型
+    // 创建3D模型（按兵种传入外观变体）
     const colorKey = this.kind === 'boss' ? 'boss' : this.kind === 'heavy' ? 'heavy' : 'enemy';
-    this.mesh = this.kind === 'boss' ? createBossCharacter() : createCharacter(colorKey, def.scale);
+    const variant = this.kind === 'boss' ? '' : this.kind; // sniper/heavy/charger/crouch 变体
+    this.mesh = this.kind === 'boss' ? createBossCharacter() : createCharacter(colorKey, def.scale, variant);
     this.mesh.position.set(this.x, GROUND_Y, this.z);
     this.mesh.userData.isEnemy = true;
     this.mesh.userData.enemyRef = this;
@@ -77,10 +90,48 @@ export class Enemy3D {
     this.hpBar = this._createHPBar();
     this.mesh.add(this.hpBar);
 
+    // 红外距离标签（开镜时显示 "▲ XXXm" 热点透视）
+    this.distLabel = this._createDistLabel();
+    this.mesh.add(this.distLabel);
+
     // 受伤闪烁
     this.hurtFlash = 0;
     // 行走动画计时
     this.walkT = 0;
+  }
+
+  /** 开镜红外热点距离标签（默认隐藏） */
+  _createDistLabel() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 96; canvas.height = 28;
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, opacity: 0 });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.y = 3.1;
+    sprite.scale.set(1.2, 0.35, 1);
+    sprite.userData.canvas = canvas;
+    sprite.userData.ctx = canvas.getContext('2d');
+    return sprite;
+  }
+
+  /** 更新红外距离标签：visible 开镜才显示；dist 为到玩家的米数 */
+  setDistLabel(visible, dist) {
+    if (!this.alive || !this.spawned) { this.distLabel.material.opacity = 0; return; }
+    const c = this.distLabel.userData.canvas;
+    const ctx = this.distLabel.userData.ctx;
+    const show = visible && dist > 0;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (show) {
+      ctx.fillStyle = 'rgba(30,6,2,0.55)';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = this.enraged ? '#ff9944' : '#ff5533';
+      ctx.font = 'bold 17px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`▲ ${Math.round(dist)}m`, c.width / 2, c.height / 2 + 1);
+      this.distLabel.material.map.needsUpdate = true;
+    }
+    this.distLabel.material.opacity = show ? 1 : 0;
   }
 
   /** 收集所有可发光的材质引用（供红外热成像切换） */
@@ -102,8 +153,9 @@ export class Enemy3D {
     return refs;
   }
 
-  /** 应用红外热成像发光态：active=true 开镜白热，false 关镜暗红 */
+  /** 应用红外热成像发光态：active=true 开镜白热，false 关镜暗红；激怒时更亮偏橙 */
   _applyThermal(mat, isCore, isEye, active) {
+    const enrageBoost = this.enraged ? 0.55 : 0;
     if (this.kind === 'boss' && (isCore || isEye)) {
       // Boss 核心/眼睛自身发光，热成像下进一步拉亮
       mat.emissive = new THREE.Color(active ? 0xffaa44 : 0xff4400);
@@ -111,11 +163,11 @@ export class Enemy3D {
       return;
     }
     if (active) {
-      mat.emissive = new THREE.Color(0xff5324); // 白热橙红热源
-      mat.emissiveIntensity = 1.7;
+      mat.emissive = new THREE.Color(this.enraged ? 0xff8844 : 0xff5324); // 白热橙红热源
+      mat.emissiveIntensity = 1.7 + enrageBoost;
     } else {
-      mat.emissive = new THREE.Color(0x8a1a0a); // 夜色暗红轮廓（不开镜难辨方向）
-      mat.emissiveIntensity = 0.35;
+      mat.emissive = new THREE.Color(this.enraged ? 0xcc3a22 : 0x8a1a0a); // 夜色暗红轮廓（不开镜难辨方向）
+      mat.emissiveIntensity = 0.35 + enrageBoost * 0.4;
     }
   }
 
@@ -166,16 +218,23 @@ export class Enemy3D {
   moveUpdate(dt, allyX) {
     if (!this.alive || !this.spawned) return;
     let moving = false;
-    if (this.kind === 'patrol' && this.speed > 0) {
-      this.x += this.dir * this.speed * dt;
+    const spd = this.speed * (this.enraged ? ENRAGE.moveMult : 1);
+    if (this.kind === 'patrol' && this.enraged) {
+      // 激怒巡逻兵：放弃巡逻折返，直线冲向队友
+      const dx = allyX - this.x;
+      const d = Math.sign(dx);
+      if (Math.abs(dx) > 3) { this.x += d * spd * dt; moving = true; }
+      this.mesh.rotation.y = d > 0 ? 0 : Math.PI;
+    } else if (this.kind === 'patrol' && spd > 0) {
+      this.x += this.dir * spd * dt;
       if (this.x >= this.maxX) { this.x = this.maxX; this.dir = -1; }
       if (this.x <= this.minX) { this.x = this.minX; this.dir = 1; }
       this.mesh.rotation.y = this.dir > 0 ? 0 : Math.PI;
       moving = true;
-    } else if (this.kind === 'charger' && this.speed > 0) {
+    } else if (this.kind === 'charger' && spd > 0) {
       const dx = allyX - this.x;
       const d = Math.sign(dx);
-      if (Math.abs(dx) > 3) { this.x += d * this.speed * dt; moving = true; }
+      if (Math.abs(dx) > 3) { this.x += d * spd * dt; moving = true; }
       this.mesh.rotation.y = d > 0 ? 0 : Math.PI;
     } else {
       this.mesh.rotation.y = allyX >= this.x ? 0 : Math.PI;
@@ -206,19 +265,20 @@ export class Enemy3D {
   fireUpdate(dt, allyAlive) {
     if (!this.alive || !this.spawned || !this.visible) return false;
     if (this.fireRate <= 0 || !allyAlive) return false;
+    const rate = this.fireRate * (this.enraged ? ENRAGE.fireMult : 1);
     this.fireTimer -= dt;
     if (this.kind === 'sniper') {
       if (!this.aiming) { this.aiming = true; this.aimProgress = 0; }
       this.aimProgress += dt;
       if (this.aimProgress >= this.aimTime) {
         this.aiming = false;
-        this.fireTimer = 1 / this.fireRate;
+        this.fireTimer = 1 / rate;
         return true;
       }
       return false;
     }
     if (this.fireTimer <= 0) {
-      this.fireTimer = 1 / this.fireRate;
+      this.fireTimer = 1 / rate;
       return true;
     }
     return false;
@@ -281,6 +341,15 @@ export class Enemy3D {
     this.hp -= dmg;
     this.hurtFlash = 0.12;
     this.updateHPBar();
+
+    // 激怒机制：受击未死（非Boss）→ 狂暴加速/射速提升，外观更亮偏橙
+    if (this.alive && this.hp > 0 && this.kind !== 'boss' && !this.enraged) {
+      this.enraged = true;
+      if (this._matRefs) {
+        this._matRefs.forEach(r => this._applyThermal(r.mat, r.isCore, r.isEye, this._thermal));
+      }
+    }
+
     // 闪烁效果
     this.mesh.traverse(child => {
       if (child.isMesh) child.material.emissive = new THREE.Color(0xffffff);
@@ -302,8 +371,9 @@ export class Enemy3D {
     this.peekUpdate(dt);
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
-    // 冲锋兵贴身自爆：对队友造成近战伤害，自身阵亡
-    if (this.kind === 'charger' && allyAlive && Math.abs(allyX - this.x) <= 2.5) {
+    // 冲锋兵/激怒巡逻兵贴身自爆：对队友造成近战伤害，自身阵亡
+    const canMelee = this.kind === 'charger' || (this.kind === 'patrol' && this.enraged);
+    if (canMelee && allyAlive && Math.abs(allyX - this.x) <= 2.5) {
       this.hp = 0;
       this.alive = false;
       this.mesh.visible = false;

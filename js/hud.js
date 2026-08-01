@@ -50,6 +50,44 @@ export class HUD {
   showDeadScreen() { this.showScreen('dead'); }
   showWinAllScreen() { this.showScreen('winAll'); }
 
+  /** 命中标记：isKill=true 显示红色击杀 X，否则白色命中 X */
+  showHitmarker(isKill) {
+    const el = document.getElementById('hitmarker');
+    if (!el) return;
+    el.classList.remove('show', 'kill');
+    // 强制重排以重启动画
+    void el.offsetWidth;
+    el.classList.add('show');
+    if (isKill) el.classList.add('kill');
+    clearTimeout(this._hmTimer);
+    this._hmTimer = setTimeout(() => el.classList.remove('show', 'kill'), 260);
+  }
+
+  /** 受击红闪（队友掉血） */
+  showDamageFlash() {
+    const el = document.getElementById('dmg-flash');
+    if (!el) return;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    clearTimeout(this._dfTimer);
+    this._dfTimer = setTimeout(() => el.classList.remove('show'), 480);
+  }
+
+  /** 敌人狂暴提示（首次激怒时 HUD 短暂横幅） */
+  showEnrageNotice() {
+    const el = document.getElementById('hudCombo');
+    if (!el) return;
+    const prev = el.textContent;
+    el.style.display = 'inline';
+    el.textContent = '⚠ 敌人狂暴！';
+    clearTimeout(this._enrageTimer);
+    this._enrageTimer = setTimeout(() => {
+      el.textContent = prev;
+      if (!prev) el.style.display = 'none';
+    }, 1400);
+  }
+
   // === HUD 更新（接收对象参数） ===
   updateHUD(data) {
     if (this.el.level) this.el.level.textContent = `关卡 ${data.levelId || '-'}`;

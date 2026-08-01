@@ -34,31 +34,54 @@
     /* Scope Overlay — 夜视红外瞄准镜 */
     #scope-overlay { position:fixed; inset:0; display:none; z-index:15; pointer-events:none; }
     #scope-overlay.active { display:block; }
-    #scope-ring { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:74vmin; height:74vmin; border-radius:50%; overflow:hidden; border:4px solid rgba(0,0,0,0.9); box-shadow:0 0 0 9999px rgba(0,0,0,0.78), inset 0 0 70px rgba(0,0,0,0.5); }
+    #scope-ring { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:74vmin; height:74vmin; border-radius:50%; overflow:hidden; border:4px solid rgba(0,0,0,0.92); box-shadow:0 0 0 9999px rgba(0,0,0,0.8), inset 0 0 80px rgba(0,0,0,0.55); }
     /* 红外镜片暗红氛围 */
-    #scope-ring .scope-thermal-tint { position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle, rgba(120,20,10,0.12) 0%, rgba(255,60,20,0.10) 45%, rgba(60,10,5,0.30) 100%); }
-    /* 主十字准星 */
+    #scope-ring .scope-thermal-tint { position:absolute; inset:0; border-radius:50%; background:radial-gradient(circle, rgba(120,20,10,0.10) 0%, rgba(255,60,20,0.08) 42%, rgba(60,10,5,0.34) 100%); }
+    /* 镜片玻璃高光（模拟透镜反光） */
+    #scope-ring .scope-glass-glow { position:absolute; inset:0; border-radius:50%; background:linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 32%, rgba(255,120,60,0.05) 60%, transparent 100%); pointer-events:none; }
+    /* 精密刻度环：外层细刻度 */
+    #scope-ring .scope-dial { position:absolute; inset:4%; border-radius:50%; border:1px solid rgba(255,85,51,0.28); }
+    #scope-ring .scope-dial::before { content:''; position:absolute; inset:5%; border-radius:50%; border:1px dashed rgba(255,85,51,0.16); }
+    /* 主十字准星（更细） */
     #scope-crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }
     #scope-crosshair::before, #scope-crosshair::after { content:''; position:absolute; background:#ff5533; box-shadow:0 0 6px rgba(255,60,20,0.9); }
-    #scope-crosshair::before { width:34px; height:2px; top:-1px; left:-17px; }
-    #scope-crosshair::after { width:2px; height:34px; top:-17px; left:-1px; }
+    #scope-crosshair::before { width:40px; height:1.5px; top:-1px; left:-20px; }
+    #scope-crosshair::after { width:1.5px; height:40px; top:-20px; left:-1px; }
     /* 中心细密点 */
-    #scope-center-dot { position:absolute; top:50%; left:50%; width:3px; height:3px; transform:translate(-50%,-50%); border-radius:50%; background:#ff4422; box-shadow:0 0 4px rgba(255,60,20,1); }
+    #scope-center-dot { position:absolute; top:50%; left:50%; width:4px; height:4px; transform:translate(-50%,-50%); border-radius:50%; background:#ff4422; box-shadow:0 0 6px rgba(255,60,20,1); }
     /* 四向刻度 */
     .scope-tick { position:absolute; color:#ff5533; font-size:12px; font-weight:700; text-shadow:0 0 5px #000; }
     .scope-tick-top { top:5%; left:50%; transform:translateX(-50%); }
     .scope-tick-bottom { bottom:5%; left:50%; transform:translateX(-50%); }
     .scope-tick-left { top:50%; left:1%; transform:translateY(-50%); }
     .scope-tick-right { top:50%; right:1%; transform:translateY(-50%); }
-    /* 细密位线（短刻度） */
-    .scope-mil { position:absolute; background:rgba(255,85,51,0.55); }
-    .scope-mil-n { top:9%; left:50%; width:1px; height:16%; transform:translateX(-50%); }
-    .scope-mil-s { bottom:9%; left:50%; width:1px; height:16%; transform:translateX(-50%); }
-    .scope-mil-w { left:9%; top:50%; width:16%; height:1px; transform:translateY(-50%); }
-    .scope-mil-e { right:9%; top:50%; width:16%; height:1px; transform:translateY(-50%); }
-    #scope-range { bottom:9%; left:50%; transform:translateX(-50%); font-size:13px; letter-spacing:2px; }
+    /* 细密位线：8 根（0/45/90/135°） */
+    .scope-mil { position:absolute; background:rgba(255,85,51,0.5); }
+    .scope-mil-n { top:9%; left:50%; width:1px; height:14%; transform:translateX(-50%); }
+    .scope-mil-s { bottom:9%; left:50%; width:1px; height:14%; transform:translateX(-50%); }
+    .scope-mil-w { left:9%; top:50%; width:14%; height:1px; transform:translateY(-50%); }
+    .scope-mil-e { right:9%; top:50%; width:14%; height:1px; transform:translateY(-50%); }
+    .scope-mil-ne { top:21%; left:21%; width:10%; height:1px; transform:rotate(45deg); transform-origin:center; }
+    .scope-mil-sw { bottom:21%; right:21%; width:10%; height:1px; transform:rotate(45deg); transform-origin:center; }
+    .scope-mil-nw { top:21%; right:21%; width:10%; height:1px; transform:rotate(-45deg); transform-origin:center; }
+    .scope-mil-se { bottom:21%; left:21%; width:10%; height:1px; transform:rotate(-45deg); transform-origin:center; }
+    #scope-range { bottom:9%; left:50%; transform:translateX(-50%); font-size:14px; letter-spacing:2px; }
     /* 红外模式标签 */
     .scope-mode { top:-2%; right:50%; transform:translateX(50%); font-size:12px; color:#ff6a3a; letter-spacing:2px; text-shadow:0 0 6px rgba(255,60,20,0.8); background:rgba(40,8,4,0.6); padding:2px 10px; border-radius:4px; border:1px solid rgba(255,80,40,0.4); }
+
+    /* Hitmarker 命中标记（白 X 命中 / 红 X 击杀） */
+    #hitmarker { position:fixed; top:50%; left:50%; width:26px; height:26px; transform:translate(-50%,-50%); opacity:0; pointer-events:none; z-index:16; }
+    #hitmarker.show { opacity:1; animation:hm-pop .22s ease-out; }
+    #hitmarker::before, #hitmarker::after { content:''; position:absolute; top:50%; left:50%; width:22px; height:2px; background:#fff; }
+    #hitmarker::before { transform:translate(-50%,-50%) rotate(45deg); }
+    #hitmarker::after { transform:translate(-50%,-50%) rotate(-45deg); }
+    #hitmarker.kill::before, #hitmarker.kill::after { background:#ff3b30; box-shadow:0 0 8px rgba(255,59,48,0.9); }
+    @keyframes hm-pop { 0%{ transform:translate(-50%,-50%) scale(1.8); opacity:1; } 100%{ transform:translate(-50%,-50%) scale(1); opacity:0; } }
+
+    /* 受击红闪（队友掉血时屏幕边缘红晕） */
+    #dmg-flash { position:fixed; inset:0; opacity:0; pointer-events:none; z-index:16; background:radial-gradient(ellipse at center, transparent 55%, rgba(200,30,20,0.55) 100%); }
+    #dmg-flash.show { animation:flash-fade .45s ease-out; }
+    @keyframes flash-fade { 0%{ opacity:1; } 100%{ opacity:0; } }
 
     /* Screens */
     .screen { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:rgba(8,12,20,0.88); z-index:30; backdrop-filter:blur(4px); }
@@ -110,6 +133,8 @@
   <div id="scope-overlay">
     <div id="scope-ring">
       <div class="scope-thermal-tint"></div>
+      <div class="scope-glass-glow"></div>
+      <div class="scope-dial"></div>
       <div id="scope-crosshair"></div>
       <div id="scope-center-dot"></div>
       <!-- 四向密位刻度 -->
@@ -117,16 +142,25 @@
       <div class="scope-tick scope-tick-bottom">▼</div>
       <div class="scope-tick scope-tick-left">◀</div>
       <div class="scope-tick scope-tick-right">▶</div>
-      <!-- 细密位线 -->
+      <!-- 细密位线（8 根：0/45/90/135°） -->
       <div class="scope-mil scope-mil-n"></div>
       <div class="scope-mil scope-mil-s"></div>
       <div class="scope-mil scope-mil-w"></div>
       <div class="scope-mil scope-mil-e"></div>
+      <div class="scope-mil scope-mil-ne"></div>
+      <div class="scope-mil scope-mil-sw"></div>
+      <div class="scope-mil scope-mil-nw"></div>
+      <div class="scope-mil scope-mil-se"></div>
       <!-- 距离/红外状态 -->
       <div class="scope-tick" id="scope-range">800m</div>
       <div class="scope-tick scope-mode" id="scope-mode">🔴 THERMAL</div>
     </div>
   </div>
+
+  <!-- Hitmarker 命中/击杀标记 -->
+  <div id="hitmarker"></div>
+  <!-- 受击红闪 -->
+  <div id="dmg-flash"></div>
 
   <!-- Pause Tip -->
   <div id="pauseTip">⏸ 已暂停 · 按 ESC 继续</div>
