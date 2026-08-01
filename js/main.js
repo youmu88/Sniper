@@ -188,12 +188,23 @@ function update(dt) {
     fpsCam.isLocked = false;
   }
 
-  // 开镜缩放
+  // 开镜缩放 + 滚轮跳放大倍数
   fpsCam.setZoom(input.zoom);
+  const scopeDelta = input.consumeScopeDelta();
+  if (scopeDelta !== 0 && input.zoom) fpsCam.cycleScope(scopeDelta);
   fpsCam.update(dt);
 
-  // 红外热成像联动：开镜才让敌人以红外高亮显现 + 热点距离标签
-  enemies.forEach(e => e.setThermal(input.zoom));
+  // 镜内倍率显示
+  const scopeZoom = document.getElementById('scope-zoom');
+  if (scopeZoom) {
+    scopeZoom.textContent = input.zoom ? `SCOPE ${fpsCam.getScopeMagnification().toFixed(1)}x` : '';
+  }
+
+  // 红外热成像联动：开镜才让敌人以红外高亮显现 + 热点距离标签 + 隐蔽揭示
+  enemies.forEach(e => {
+    e.setThermal(input.zoom);
+    e.setReveal(input.zoom, fpsCam.scopeLevel + 1);
+  });
   const scopeRange = document.getElementById('scope-range');
   if (scopeRange) {
     let nearest = Infinity;

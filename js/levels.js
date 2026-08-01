@@ -35,6 +35,7 @@ const LEVELS = [
       { kind: 'stationary', x: -6, z: -20, hp: 1, fireRate: 0.8 },
       { kind: 'patrol', x: 2, z: -22, hp: 1, fireRate: 0.5, range: 6, speed: 3 },
       { kind: 'stationary', x: 10, z: -18, hp: 1, fireRate: 0 },
+      { kind: 'stationary', x: -14, z: -34, hp: 1, fireRate: 0, hidden: true }, // 远距隐蔽哨兵
     ],
   },
   // L3 火力集结
@@ -87,6 +88,8 @@ const LEVELS = [
       { kind: 'patrol', x: 2, z: -20, hp: 1, fireRate: 0.9, range: 4, speed: 3 },
       { kind: 'crouch', x: 12, z: -20, hp: 2, peekInterval: 2.0, peekDur: 1.0 },
       { kind: 'charger', x: 8, z: -26, hp: 3, speed: 13, fireRate: 0, delay: 6 },
+      { kind: 'sniper', x: -14, z: -38, hp: 3, fireRate: 0.6, aimTime: 1.6, hidden: true, revealLevel: 2 }, // 远距隐蔽狙击手
+      { kind: 'stationary', x: 16, z: -34, hp: 1, fireRate: 0.7, hidden: true }, // 侧翼隐蔽火力
     ],
   },
   // L6 火力压制

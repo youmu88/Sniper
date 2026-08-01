@@ -43,6 +43,10 @@ export class Enemy3D {
     this.delay = cfg.delay || 0;
     this.dir = 1;
     this.visible = true;
+    // 隐蔽机制：hidden 敌人不开镜不可见，需开镜 + 足够倍率揭示
+    this.hidden = !!cfg.hidden;
+    this.revealLevel = cfg.revealLevel || 1; // 1=开镜即可见, 2=中倍率, 3=最高倍率
+    this._revealed = false;
     // 激怒状态：受击未死 → 加速反扑/射速提升
     this.enraged = false;
     this._enrageHintTimer = 0;
@@ -176,8 +180,7 @@ export class Enemy3D {
   /** 切换红外热成像（main.js 随开镜状态调用） */
   setThermal(active) {
     if (this._thermal === active) return;
-    this._thermal = active;
-    if (this._matRefs) {
+    this._thermal = active;    if (this._matRefs) {
       this._matRefs.forEach(r => this._applyThermal(r.mat, r.isCore, r.isEye, active));
     }
   }
@@ -209,12 +212,31 @@ export class Enemy3D {
     this.hpBar.material.map.needsUpdate = true;
   }
 
-  isVisible() { return this.alive && this.spawned && this.visible; }
+  isVisible() {
+    // 隐蔽敌人未揭示时不可见（不开镜或倍率不足）
+    if (this.hidden && !this._revealed) return false;
+    return this.alive && this.spawned && this.visible;
+  }
+
+  /** 隐蔽揭示：active=开镜，level=当前倍率档(1=基础,2=中,3=最高)
+   *  hidden 敌人需开镜且倍率达到 revealLevel 才可见；
+   *  普通敌人不受影响（保持既有行为，回归安全） */
+  setReveal(active, level) {
+    if (!this.hidden) return;
+    const shouldReveal = active && level >= this.revealLevel;
+    if (shouldReveal === this._revealed) return;
+    this._revealed = shouldReveal;
+    this.mesh.visible = shouldReveal && this.spawned;
+    this.hpBar.material.opacity = shouldReveal ? 1 : 0;
+  }
 
   spawnUpdate(dt) {
     if (this.spawned) return;
     this.delay -= dt;
-    if (this.delay <= 0) { this.spawned = true; this.mesh.visible = true; }
+    if (this.delay <= 0) {
+      this.spawned = true;
+      this.mesh.visible = !this.hidden || this._revealed; // 隐蔽敌人由揭示状态控制
+    }
   }
 
   moveUpdate(dt, allyX) {

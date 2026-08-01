@@ -12,6 +12,7 @@ export class InputManager {
     this.shootBuffer = false;
     this.pointerLocked = false;
     this.keys = {};
+    this.scopeDelta = 0; // 滚轮跳档缓冲（正=放大，负=缩小）
     this._onShoot = null;
     this._onZoom = null;
     this._onPause = null;
@@ -51,6 +52,13 @@ export class InputManager {
       if (e.button === 0) this.shooting = false;
     });
 
+    document.addEventListener('wheel', (e) => {
+      if (!this.pointerLocked) return;
+      // 开镜时滚轮跳放大倍数
+      if (e.deltaY < 0) this.scopeDelta += 1;  // 滚上 → 放大
+      else if (e.deltaY > 0) this.scopeDelta -= 1; // 滚下 → 缩小
+    });
+
     document.addEventListener('contextmenu', (e) => e.preventDefault());
 
     document.addEventListener('keydown', (e) => {
@@ -72,6 +80,13 @@ export class InputManager {
   consumeShoot() {
     const v = this.shootBuffer;
     this.shootBuffer = false;
+    return v;
+  }
+
+  /** 消费滚轮跳档缓冲（返回累计 delta，清空） */
+  consumeScopeDelta() {
+    const v = this.scopeDelta;
+    this.scopeDelta = 0;
     return v;
   }
 

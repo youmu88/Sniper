@@ -450,5 +450,105 @@ export function createProps(levelDef) {
   }
 
   props.forEach(p => group.add(p));
+
+  // ============ 每关专属装饰（Canvas 程序化高清纹理，提升辨识度） ============
+  const specials = [];
+  if (levelDef.id === 1) {
+    // L1 教学关：训练靶（木桩 + 靶心）
+    const target = _createTarget(rand(-14, -16), rand(-30, -26));
+    if (target) specials.push(target);
+  } else if (levelDef.id === 3) {
+    // L3 城镇：涂鸦墙
+    const wall = _createGraffitiWall(rand(-24, -28), rand(-30, -26));
+    if (wall) specials.push(wall);
+  } else if (levelDef.id === 4) {
+    // L4 城镇夜：霓虹灯牌（发光）
+    const neon = _createNeonSign(rand(-18, -22), rand(-28, -24));
+    if (neon) specials.push(neon);
+  } else if (levelDef.id === 8) {
+    // L8 机甲基地：能量罐（警示纹理）
+    const tank = _createEnergyTank(rand(-14, -18), rand(-32, -28));
+    if (tank) specials.push(tank);
+  }
+  specials.forEach(p => group.add(p));
   return group;
+}
+
+/** 训练靶：木桩 + Canvas 靶心环 */
+function _createTarget(x, z) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const rings = [['#ffffff', 62], ['#e05555', 48], ['#ffffff', 34], ['#e05555', 20], ['#dd2222', 7]];
+    rings.forEach(([c, r]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(64, 64, r, 0, Math.PI * 2); ctx.fill(); });
+    const tex = new THREE.CanvasTexture(canvas);
+    const group = new THREE.Group();
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x6a5238, roughness: 0.9 });
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.12), postMat);
+    post.position.y = 0.75; post.castShadow = true; group.add(post);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.06), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+    board.position.y = 1.7; board.castShadow = true; group.add(board);
+    group.position.set(x, 0, z);
+    return group;
+  } catch (e) { return null; }
+}
+
+/** 涂鸦墙：墙面 + Canvas 涂鸦（★ 标记） */
+function _createGraffitiWall(x, z) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#6a5a4a'; ctx.fillRect(0, 0, 256, 128);
+    ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 6;
+    ctx.strokeRect(18, 16, 60, 90);
+    ctx.fillStyle = '#e67e22';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(150 + i * 16, 60, 8, 8);
+      ctx.fillRect(154 + i * 16, 40, 8, 8);
+      ctx.fillRect(154 + i * 16, 80, 8, 8);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.2, 0.25), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+    wall.position.set(x, 0.6, z); wall.castShadow = true;
+    return wall;
+  } catch (e) { return null; }
+}
+
+/** 霓虹灯牌：发光标牌（夜战氛围） */
+function _createNeonSign(x, z) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(20,10,30,0.9)'; ctx.fillRect(0, 0, 128, 64);
+    ctx.strokeStyle = '#ff55ff'; ctx.lineWidth = 4; ctx.shadowColor = '#ff55ff'; ctx.shadowBlur = 12;
+    ctx.font = 'bold 30px system-ui'; ctx.fillStyle = '#ff88ff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('HOTEL', 64, 34);
+    const tex = new THREE.CanvasTexture(canvas);
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 0.12),
+      new THREE.MeshStandardMaterial({ map: tex, emissive: 0x8833aa, emissiveIntensity: 0.8, roughness: 0.4 }));
+    sign.position.set(x, 3.2, z); sign.castShadow = true;
+    return sign;
+  } catch (e) { return null; }
+}
+
+/** 能量罐：圆筒 + 警示条纹（机甲基地） */
+function _createEnergyTank(x, z) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3a4a5a'; ctx.fillRect(0, 0, 64, 128);
+    ctx.fillStyle = '#e8c93a';
+    for (let y = 16; y < 128; y += 32) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(64, y - 12); ctx.lineTo(64, y + 4); ctx.lineTo(0, y + 20); ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.4 }));
+    tank.position.set(x, 0.8, z); tank.castShadow = true;
+    return tank;
+  } catch (e) { return null; }
 }

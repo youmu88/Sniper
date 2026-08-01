@@ -62,6 +62,8 @@
     .scope-mil-nw { top:21%; right:21%; width:10%; height:1px; transform:rotate(-45deg); transform-origin:center; }
     .scope-mil-se { bottom:21%; left:21%; width:10%; height:1px; transform:rotate(-45deg); transform-origin:center; }
     #scope-range { bottom:9%; left:50%; transform:translateX(-50%); font-size:14px; letter-spacing:2px; }
+    /* 倍率显示（镜内左下角） */
+    .scope-zoom { bottom:9%; left:3%; font-size:13px; font-weight:700; color:#ffd080; letter-spacing:1px; text-shadow:0 0 5px #000; background:rgba(20,5,2,0.5); padding:2px 8px; border-radius:3px; white-space:nowrap; }
     /* 红外模式标签 */
     /* 红外模式标签（圈内顶部，避免 overflow:hidden 裁剪；开镜渐入） */
     .scope-mode { top:2.8%; left:50%; transform:translateX(-50%); font-size:12px; color:#ff6a3a; letter-spacing:2px; text-shadow:0 0 6px rgba(255,60,20,0.8); background:rgba(40,8,4,0.6); padding:2px 12px; border-radius:4px; border:1px solid rgba(255,80,40,0.4); white-space:nowrap; opacity:0; animation:thermal-boot .5s ease-out .15s forwards; }
@@ -152,6 +154,8 @@
       <!-- 距离/红外状态 -->
       <div class="scope-tick" id="scope-range">800m</div>
       <div class="scope-tick scope-mode" id="scope-mode">🔴 THERMAL</div>
+      <!-- 倍率显示 -->
+      <div class="scope-tick scope-zoom" id="scope-zoom">SCOPE 5.3x</div>
       <!-- 风速 / 弹道补偿专业读数 -->
       <div class="scope-readout" id="scope-wind">WIND → 0.0</div>
       <div class="scope-readout" id="scope-comp">COMP +0.0 MIL</div>
