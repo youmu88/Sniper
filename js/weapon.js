@@ -1,7 +1,8 @@
 /* ============================================================
- * weapon.js — 狙击枪系统 (Raycaster 射击 + 弹道 + 瞄准镜)
+ * weapon.js — 狙击枪系统 (Raycaster 射击 + 弹道 + 瞄准镜 + 风偏)
  * ============================================================ */
 import * as THREE from 'three';
+import { aimYawOffset, windDriftAngle, residualAngle } from './wind-logic.js';
 
 export class Weapon {
   constructor(scene, camera) {
@@ -88,7 +89,7 @@ export class Weapon {
     }
   }
 
-  shoot(targets, zooming) {
+  shoot(targets, zooming, wind = null) {
     const now = performance.now() / 1000;
     if (now - this.lastShootTime < this.shootCooldown) return null;
     if (this.ammo <= 0) return null;
@@ -101,8 +102,22 @@ export class Weapon {
 
     if (this.onShoot) this.onShoot();
 
-    // Raycaster 命中检测
-    this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    // 瞄准方向：默认屏幕中心；有风且补偿非0时绕 Y 轴旋转（mil-dot 调零）
+    // 回归保护：无风或补偿为 0 → 不旋转，行为与旧版完全一致
+    const baseDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    let aimDir = baseDir;
+    if (wind && wind.enabled && Math.abs(wind.compMil) > 0.001) {
+      const driftRad = windDriftAngle(wind.speed, wind.bulletSpeed);
+      const residual = residualAngle(driftRad, wind.compMil);
+      // 净偏差残差才旋转：玩家补偿已抵消的部分不再重复计算
+      const yaw = aimYawOffset(wind.dir, wind.compMil);
+      if (Math.abs(yaw) > 1e-5 || Math.abs(residual) > 1e-5) {
+        aimDir = baseDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      }
+    }
+
+    // Raycaster 命中检测（沿风偏修正后的瞄准方向）
+    this.raycaster.set(this.camera.position, aimDir);
     const intersects = this.raycaster.intersectObjects(targets, true);
 
     // 子弹轨迹（视觉弹道）

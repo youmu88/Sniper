@@ -11,6 +11,7 @@ import { createCharacter, createBossCharacter, createDeadBody } from './characte
 import { Ally3D } from './allies.js';
 import { Enemy3D } from './enemies.js';
 import { Weapon } from './weapon.js';
+import { suggestCompMil, BULLET_SPEED } from './wind-logic.js';
 import { ParticleSystem } from './particles.js';
 import { HUD } from './hud.js';
 import { LEVELS } from './levels.js';
@@ -47,6 +48,9 @@ let enemyBullets = [];
 let levelDef = null;
 let lastTime = 0;
 let windPhase = 0; // 瞄准镜风速模拟相位
+let windComp = 0;  // 玩家当前调零补偿（MIL）
+let windAdjTimer = 0; // 调零按键节流
+let windState = { enabled: true, speed: 0, dir: 1, compMil: 0, bulletSpeed: BULLET_SPEED };
 
 // 收集所有可射击目标
 function getTargets() {
@@ -203,16 +207,31 @@ function update(dt) {
     // 风速模拟：缓慢随机游走（向《狙击精英》mil-dot 靠拢）
     windPhase += dt * 0.22;
     const windSpeed = Math.max(0.3, 1.6 + Math.sin(windPhase) * 1.1 + Math.sin(windPhase * 0.37) * 0.7);
-    const windDir = windPhase % (Math.PI * 2) < Math.PI ? '→' : '←';
-    const scopeWind = document.getElementById('scope-wind');
-    if (scopeWind) scopeWind.textContent = `WIND ${windDir} ${windSpeed.toFixed(1)}`;
+    const windDir = windPhase % (Math.PI * 2) < Math.PI ? 1 : -1;
 
-    // 弹道补偿：距离越远补偿越大（模拟弹道下坠修正量）
+    // 键盘调零：[ ] 键增减补偿密位（每按 0.15s 步进 0.1 MIL）
+    windAdjTimer -= dt;
+    if (input.keys['BracketLeft'] && windAdjTimer <= 0) { windComp -= 0.1; windAdjTimer = 0.15; }
+    if (input.keys['BracketRight'] && windAdjTimer <= 0) { windComp += 0.1; windAdjTimer = 0.15; }
+    windComp = Math.max(-3, Math.min(3, windComp));
+
+    const scopeWind = document.getElementById('scope-wind');
+    if (scopeWind) {
+      const sugg = suggestCompMil(windSpeed);
+      scopeWind.textContent = `WIND ${windDir > 0 ? '→' : '←'} ${windSpeed.toFixed(1)} (${sugg >= 0 ? '+' : ''}${sugg.toFixed(1)}MIL)`;
+    }
+
+    // 弹道补偿：显示玩家当前调零值 + 是否命中提示（绿色=已对准）
     const scopeComp = document.getElementById('scope-comp');
     if (scopeComp) {
-      const comp = nearest < Infinity ? Math.max(0, (nearest - 12) * 0.055) : 0;
-      scopeComp.textContent = `COMP +${comp.toFixed(1)} MIL`;
+      const sugg = suggestCompMil(windSpeed);
+      const aligned = Math.abs(windComp - sugg) < 0.06;
+      scopeComp.textContent = `COMP ${windComp >= 0 ? '+' : ''}${windComp.toFixed(1)} MIL`;
+      scopeComp.style.color = aligned ? '#6cff6c' : '#ffb080';
     }
+
+    // 记录当前风况供射击使用
+    windState = { enabled: true, speed: windSpeed, dir: windDir, compMil: windComp, bulletSpeed: BULLET_SPEED };
   }
 
   // 瞄准镜UI
@@ -234,7 +253,7 @@ function update(dt) {
     targets.forEach(t => {
       t.traverse(child => { if (child.isMesh) shootMeshes.push(child); });
     });
-    const result = weapon.shoot(shootMeshes, input.zoom);
+    const result = weapon.shoot(shootMeshes, input.zoom, windState);
 
     if (result) {
       STATE.stats.shots++;
